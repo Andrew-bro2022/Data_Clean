@@ -1,0 +1,39 @@
+defaults:
+  encoding: utf-8
+  delimiter: ','
+  skiprows: 0
+header_match_threshold: 0.6
+mappings: {}
+rules:
+  BA_CVA_Allocation_r20260217.csv:
+    aliases:
+    - BA_CVA_Allocation_r20260217
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Trade_ID
+      type: int
+    - name: As_Of_Date
+      type: date
+      date_format: '%Y-%m-%d'
+    - name: Amount
+      type: float
+    - name: Currency
+      type: string
+  Desk_RWA_r20260205.csv:
+    aliases:
+    - Desk_RWA_r20260205
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Desk
+      type: string
+    - name: Reporting_Date
+      type: date
+      date_format: '%m/%d/%Y'
+    - name: RWA_Value
+      type: float
