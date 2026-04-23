@@ -1,0 +1,91 @@
+"""Smoke tests: run from project root with `pytest tests/`."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_iter_raw_files_one_level_includes_nested_csv() -> None:
+    from src.utils import iter_raw_files_one_level
+
+    raw = ROOT / "raw"
+    paths = iter_raw_files_one_level(raw)
+    names = {p.name for p in paths}
+    assert "BA_CVA_ALLOCATION_20241031_20250527.csv" in names
+    team_a = raw / "teamA" / "BA_CVA_ALLOCATION_20241031_20250527.csv"
+    if team_a.is_file():
+        assert team_a in paths
+
+
+def test_raw_subfolder_under_raw() -> None:
+    from src.utils import raw_subfolder_under_raw
+
+    raw_dir = ROOT / "raw"
+    root_file = raw_dir / "BA_CVA_ALLOCATION_20241031_20250527.csv"
+    nested = raw_dir / "teamA" / "BA_CVA_ALLOCATION_20241031_20250527.csv"
+    if root_file.is_file():
+        assert raw_subfolder_under_raw(root_file, raw_dir) == ""
+    if nested.is_file():
+        assert raw_subfolder_under_raw(nested, raw_dir) == "teamA"
+
+
+def test_mirrored_output_path() -> None:
+    from src.utils import mirrored_output_csv_path
+
+    raw_dir = ROOT / "raw"
+    out_root = ROOT / "output"
+    nested = raw_dir / "teamA" / "BA_CVA_ALLOCATION_20241031_20250527.csv"
+    if nested.is_file():
+        p = mirrored_output_csv_path(nested, raw_dir, out_root)
+        assert p == out_root / "teamA" / "BA_CVA_ALLOCATION_20241031_20250527.csv"
+
+
+def test_match_rule_path_mapping_priority() -> None:
+    from src.file_matcher import match_rule
+    from src.reader import load_rules
+    from src.types import ColumnRule, FileRule
+
+    cfg = ROOT / "config" / "file_rules.yaml"
+    if not cfg.is_file():
+        pytest.skip("config/file_rules.yaml missing")
+
+    rules, mappings, _, _, _ = load_rules(cfg)
+    if not rules:
+        pytest.skip("no rules loaded")
+
+    std_key = next(iter(rules))
+    rule_a = rules[std_key]
+    tiny = {
+        std_key: rule_a,
+        "Other.csv": FileRule(
+            standard_file="Other.csv",
+            read={},
+            columns=[ColumnRule(name="x", data_type="string")],
+        ),
+    }
+    raw_dir = ROOT / "raw"
+    raw_file = raw_dir / "teamA" / "only_by_mapping.csv"
+    # basename maps to Other; path-specific maps to real std
+    m = {"only_by_mapping.csv": "Other.csv", "teamA/only_by_mapping.csv": std_key}
+    assert match_rule(raw_file, tiny, m, raw_dir, {}) is rule_a
+
+
+def test_match_rule_raw_prefix() -> None:
+    from src.file_matcher import match_rule
+    from src.types import ColumnRule, FileRule
+
+    raw_dir = ROOT / "raw"
+    rules = {
+        "Desk_RWA_r20260205.csv": FileRule(
+            standard_file="Desk_RWA_r20260205.csv",
+            read={},
+            columns=[ColumnRule(name="Desk", data_type="string")],
+        ),
+    }
+    prefixes = {"DESK_STANDALONE_RWA_": "Desk_RWA_r20260205.csv"}
+    f = raw_dir / "DESK_STANDALONE_RWA_20990101_20991231.csv"
+    assert match_rule(f, rules, {}, raw_dir, prefixes) is rules["Desk_RWA_r20260205.csv"]

@@ -15,14 +15,14 @@ Entrypoint for running the data cleaning pipeline in batch mode or single-file d
 - Optional CLI argument: `--file <raw_filename>`
 
 ## Outputs
-- Cleaned CSV files in `output/`
+- Cleaned CSV files in `output/` (**mirrors** paths under `raw/` for files in a subfolder one level deep)
 - Run report Excel file in `reports/`
 - Runtime log in `logs/pipeline.log`
 
 ## CLI Usage
 ```bash
 python -m src.main --base-dir .
-python -m src.main --base-dir . --file BA_CVA_ALLOCATION_20241031_20250527.csv
+python -m src.main --base-dir . --file raw/teamA/foo.csv
 ```
 
 ## Status Behavior
@@ -30,3 +30,9 @@ python -m src.main --base-dir . --file BA_CVA_ALLOCATION_20241031_20250527.csv
 - Header not detected / exceptions / no matching rule -> `failed`
 - Type conversion issues -> `warning`
 - Otherwise -> `success`
+
+## Missing vs Extra Columns (Reporting)
+
+- **missing_columns**: standard columns from YAML that **do not appear** in the raw file's **detected header row**. Entirely empty columns that still appear in the header are **not** missing.
+- **extra_columns**: header column names that are **not** listed in the standard YAML rules for that file.
+- **Output**: fully blank columns from the raw header are **retained** in `output/` (no longer dropped during cleaning).

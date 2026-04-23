@@ -12,6 +12,7 @@ from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.reader import build_rules_from_standards, load_rules
 from src.types import ProcessingResult
+from src.utils import iter_raw_files_one_level, mirrored_output_csv_path, raw_subfolder_under_raw
 from src.validator import convert_types, derive_status
 
 
@@ -27,7 +28,8 @@ def setup_logging(log_dir: Path) -> None:
     )
 
 
-def process_file(raw_file: Path, rule, threshold: float, output_dir: Path) -> ProcessingResult:
+def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_root: Path) -> ProcessingResult:
+    sf = raw_subfolder_under_raw(raw_file, raw_dir)
     if raw_file.suffix.lower() == ".xlsx":
         return ProcessingResult(
             file_name=raw_file.name,
@@ -39,6 +41,7 @@ def process_file(raw_file: Path, rule, threshold: float, output_dir: Path) -> Pr
             extra_columns=[],
             type_conversion_issues={},
             null_count_by_column={},
+            raw_subfolder=sf,
         )
 
     try:
@@ -69,6 +72,7 @@ def process_file(raw_file: Path, rule, threshold: float, output_dir: Path) -> Pr
                 extra_columns=[],
                 type_conversion_issues={},
                 null_count_by_column={},
+                raw_subfolder=sf,
                 error_message="Header row not found",
             )
 
@@ -81,20 +85,33 @@ def process_file(raw_file: Path, rule, threshold: float, output_dir: Path) -> Pr
             encoding=encoding,
             skiprows=skiprows,
         )
+        # Column presence for reporting: use names from the detected header row only (not post-clean drops).
+        header_column_names = [str(c) for c in df.columns]
+        header_set = set(header_column_names)
+
         rows_before = len(df)
         cleaned = clean_dataframe(df)
+        cleaned.columns = [str(c) for c in cleaned.columns]
 
         standard_cols = [c.name for c in rule.columns]
-        missing = [c for c in standard_cols if c not in cleaned.columns]
-        extra = [c for c in cleaned.columns if c not in standard_cols]
+        standard_set = set(standard_cols)
+        missing = [c for c in standard_cols if c not in header_set]
+        extra: list[str] = []
+        seen_extra: set[str] = set()
+        for name in header_column_names:
+            if name not in standard_set and name not in seen_extra:
+                extra.append(name)
+                seen_extra.add(name)
 
-        ordered = [c for c in standard_cols if c in cleaned.columns]
-        aligned = cleaned[ordered + extra]
+        ordered_standard = [c for c in standard_cols if c in cleaned.columns]
+        extra_ordered = [c for c in cleaned.columns if c not in standard_set]
+        aligned = cleaned[ordered_standard + extra_ordered]
 
         converted, issues = convert_types(aligned, rule.columns)
         null_counts = converted.isna().sum().astype(int).to_dict()
         status = derive_status(header_row_found=True, has_conversion_issue=bool(issues), failed=False)
-        output_path = save_cleaned(converted, output_dir, raw_file.name)
+        output_csv = mirrored_output_csv_path(raw_file, raw_dir, output_root)
+        output_path = save_cleaned(converted, output_csv)
 
         return ProcessingResult(
             file_name=raw_file.name,
@@ -106,6 +123,7 @@ def process_file(raw_file: Path, rule, threshold: float, output_dir: Path) -> Pr
             extra_columns=extra,
             type_conversion_issues=issues,
             null_count_by_column=null_counts,
+            raw_subfolder=sf,
             output_path=output_path,
         )
     except Exception as exc:  # noqa: BLE001
@@ -119,29 +137,75 @@ def process_file(raw_file: Path, rule, threshold: float, output_dir: Path) -> Pr
             extra_columns=[],
             type_conversion_issues={},
             null_count_by_column={},
+            raw_subfolder=sf,
             error_message=str(exc),
         )
 
 
 def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
-    raw_dir = base_dir / "raw"
+    raw_dir = (base_dir / "raw").resolve()
     standards_dir = base_dir / "standards"
-    output_dir = base_dir / "output"
+    output_root = base_dir / "output"
     reports_dir = base_dir / "reports"
     config_path = base_dir / "config" / "file_rules.yaml"
 
     if not config_path.exists():
         default_read = {"encoding": "utf-8", "delimiter": ",", "skiprows": 0}
-        build_rules_from_standards(standards_dir, config_path, default_read)
+        build_rules_from_standards(standards_dir, config_path, default_read, merge_existing=False)
 
-    rules, mappings, threshold, _ = load_rules(config_path)
-    files = [raw_dir / target_file] if target_file else sorted(raw_dir.glob("*"))
+    rules, mappings, threshold, _, prefix_to_standard = load_rules(config_path)
+
     results: list[ProcessingResult] = []
 
+    if target_file:
+        candidate = (base_dir / Path(target_file)).resolve()
+        if not candidate.exists() or not candidate.is_file():
+            results.append(
+                ProcessingResult(
+                    file_name=Path(target_file).name,
+                    status="failed",
+                    header_row_index=None,
+                    rows_before=0,
+                    rows_after=0,
+                    missing_columns=[],
+                    extra_columns=[],
+                    type_conversion_issues={},
+                    null_count_by_column={},
+                    raw_subfolder="",
+                    error_message="File not found",
+                )
+            )
+            return save_report_excel(results, reports_dir)
+        try:
+            candidate.relative_to(raw_dir)
+        except ValueError:
+            results.append(
+                ProcessingResult(
+                    file_name=candidate.name,
+                    status="failed",
+                    header_row_index=None,
+                    rows_before=0,
+                    rows_after=0,
+                    missing_columns=[],
+                    extra_columns=[],
+                    type_conversion_issues={},
+                    null_count_by_column={},
+                    raw_subfolder="",
+                    error_message="Path must be under raw/ (relative to base-dir)",
+                )
+            )
+            return save_report_excel(results, reports_dir)
+        files = [candidate]
+    else:
+        files = iter_raw_files_one_level(raw_dir)
+
     for raw_file in files:
+        sf = raw_subfolder_under_raw(raw_file, raw_dir)
+
         if not raw_file.exists() or raw_file.is_dir():
             continue
-        rule = match_rule(raw_file, rules, mappings)
+
+        rule = match_rule(raw_file, rules, mappings, raw_dir, prefix_to_standard)
         if rule is None:
             results.append(
                 ProcessingResult(
@@ -154,11 +218,12 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
                     extra_columns=[],
                     type_conversion_issues={},
                     null_count_by_column={},
+                    raw_subfolder=sf,
                     error_message="No matching standard rule",
                 )
             )
             continue
-        results.append(process_file(raw_file, rule, threshold, output_dir))
+        results.append(process_file(raw_file, rule, threshold, raw_dir, output_root))
 
     return save_report_excel(results, reports_dir)
 
@@ -166,7 +231,12 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Financial data cleaning pipeline")
     parser.add_argument("--base-dir", type=Path, default=Path.cwd())
-    parser.add_argument("--file", type=str, default=None, help="Run single file debug mode")
+    parser.add_argument(
+        "--file",
+        type=str,
+        default=None,
+        help="Single file relative to base-dir (e.g. raw/teamA/foo.csv)",
+    )
     return parser.parse_args()
 
 

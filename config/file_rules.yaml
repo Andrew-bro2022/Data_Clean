@@ -4,6 +4,14 @@ defaults:
   skiprows: 0
 header_match_threshold: 0.6
 mappings: {}
+raw_prefix_to_standard:
+  SACVA_SENSITIVITY_PREAGGREG_BNS_EXCL_GT_: SACVA_Sensitivity_BNS_r20260217.csv
+  SACVA_SENSITIVITY_PREAGGREG_ENTERPRISE_: SACVA_Sensitivity_ENT_r20260217.csv
+  MRC_BUSINESS_LINE_STANDALONE_RWA_: MRC_BL_RWA_r20260205.csv
+  MRC_BOOK_STANDALONE_RWA_: MRC_Book_RWA_r20260205.csv
+  DESK_STANDALONE_RWA_: Desk_RWA_r20260205.csv
+  V_SFT_NETSEC_NS_: V_SFT_NETSEC_r20260219.csv
+  V_SFT_NFX_IN_OUT_: V_SFT_NFX_r20260219.csv
 rules:
   BA_CVA_Allocation_r20260217.csv:
     aliases:
@@ -22,6 +30,20 @@ rules:
       type: float
     - name: Currency
       type: string
+  Book_Sensitivities_r20260205.csv:
+    aliases:
+    - Book_Sensitivities_r20260205
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
   Desk_RWA_r20260205.csv:
     aliases:
     - Desk_RWA_r20260205
@@ -37,3 +59,204 @@ rules:
       date_format: '%m/%d/%Y'
     - name: RWA_Value
       type: float
+  MRC_BL_RWA_r20260205.csv:
+    aliases:
+    - MRC_BL_RWA_r20260205
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  MRC_Book_Reallocated_r20260205.csv:
+    aliases:
+    - MRC_Book_Reallocated_r20260205
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  MRC_Book_RWA_r20260205.csv:
+    aliases:
+    - MRC_Book_RWA_r20260205
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  Netting_Impact_r20251224.csv:
+    aliases:
+    - Netting_Impact_r20251224
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  SA_CVA_Allocation_r20260217.csv:
+    aliases:
+    - SA_CVA_Allocation_r20260217
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  SACVA_Sensitivity_BNS_r20260217.csv:
+    aliases:
+    - SACVA_Sensitivity_BNS_r20260217
+    - SACVA_SENSITIVITY_PREAGGREG_BNS_EXCL_GT
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Trade_ID
+      type: int
+    - name: As_Of_Date
+      type: date
+      date_format: '%Y-%m-%d'
+    - name: Sens_USD
+      type: float
+    - name: Ccy
+      type: string
+  SACVA_Sensitivity_ENT_r20260217.csv:
+    aliases:
+    - SACVA_Sensitivity_ENT_r20260217
+    - SACVA_SENSITIVITY_PREAGGREG_ENTERPRISE
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  T_COLL_r20260219.csv:
+    aliases:
+    - T_COLL_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  T_DER_EAD_r20260219.csv:
+    aliases:
+    - T_DER_EAD_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  T_NETSET_r20260219.csv:
+    aliases:
+    - T_NETSET_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  T_SFT_EAD_r20260219.csv:
+    aliases:
+    - T_SFT_EAD_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  T_TRADE_RWA_r20260219.csv:
+    aliases:
+    - T_TRADE_RWA_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  V_SFT_NETSEC_r20260219.csv:
+    aliases:
+    - V_SFT_NETSEC_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string
+  V_SFT_NFX_r20260219.csv:
+    aliases:
+    - V_SFT_NFX_r20260219
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_A
+      type: string
+    - name: Col_B
+      type: string
+    - name: Col_C
+      type: string

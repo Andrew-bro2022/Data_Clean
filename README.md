@@ -9,8 +9,8 @@ This project provides a modular Python pipeline to clean raw financial CSV files
 
 The pipeline supports:
 
-- batch mode (process all files in `raw/`)
-- single-file debug mode
+- batch mode (process files in `raw/` and **one subdirectory level**: `raw/*.csv` and `raw/*/*.csv`).
+- single-file debug mode (path relative to `--base-dir`, must stay under `raw/`)
 - automatic standard-to-YAML rule generation
 
 ---
@@ -62,18 +62,20 @@ Rule config is stored in `config/file_rules.yaml`.
 
 ### 1) Batch Mode
 
-Process all files in `raw/`:
+Process all eligible files under `raw/` (top-level files and files one folder deep):
 
 ```bash
 python -m src.main --base-dir .
 ```
 
+Cleaned outputs **mirror** the structure under `raw/`, for example `raw/teamA/foo.csv` -> `output/teamA/foo.csv`.
+
 ### 2) Single File Debug Mode
 
-Process only one raw file:
+Process one file; path is **relative to `--base-dir`** and must lie under `raw/`:
 
 ```bash
-python -m src.main --base-dir . --file BA_CVA_ALLOCATION_20241031_20250527.csv
+python -m src.main --base-dir . --file raw/BA_CVA_ALLOCATION_20241031_20250527.csv
 ```
 
 ### 3) Update `config/file_rules.yaml` Only (Run `src/reader.py` Separately)
@@ -82,6 +84,18 @@ Regenerate YAML rules from `standards/` without running the full cleaning pipeli
 
 ```bash
 python -m src.reader --base-dir .
+```
+
+If `config/file_rules.yaml` **already exists**, the default behavior is to **merge** into the new file:
+
+- keeps `mappings` and `raw_prefix_to_standard`
+- keeps `header_match_threshold` and merges `defaults` with CLI flags
+- merges extra `aliases` and per-rule `read` blocks for each standard file that still exists
+
+Use `--no-merge` for a clean slate (drops manual `mappings` / prefixes until you add them again):
+
+```bash
+python -m src.reader --base-dir . --no-merge
 ```
 
 Optional overrides:
@@ -100,10 +114,10 @@ For each file:
 2. Match raw file to a standard rule
 3. Detect header row using match ratio threshold (default `0.6`)
 4. Clean values (trim, null normalization, currency/quotes cleanup, numeric normalization)
-5. Remove fully blank rows/columns
-6. Compare against standard columns:
-   - keep extra columns in output
-   - do not add missing columns
+5. Remove fully blank rows only (columns that appear in the header row are kept even if every cell is empty after cleaning)
+6. Compare header names to standard columns:
+   - keep extra columns in output (and report them as `extra_columns`)
+   - report `missing_columns` only when a YAML-standard column name is absent from the raw header row (do not output columns that were never present in the raw header)
 7. Convert types based on YAML rules
 8. Save cleaned CSV with original raw filename
 9. Add summary and column stats to Excel report
@@ -127,8 +141,8 @@ Each run creates:
 
 Sheets:
 
-- `file_summary`: one row per file
-- `column_stats`: per-file, per-column null and conversion issue counts
+- `file_summary`: one row per file (includes `raw_subfolder`: the folder name directly under `raw/`, or empty for files in `raw/` root)
+- `column_stats`: per-file, per-column null and conversion issue counts (also includes `raw_subfolder` to disambiguate same file names in different folders)
 
 ---
 
@@ -146,7 +160,10 @@ Update:
   - `skiprows` (if upstream files include fixed pre-header lines)
 - `header_match_threshold` (default `0.6`)
 - `mappings`
-  - add explicit raw-to-standard mappings for ambiguous names
+  - map a **raw file name** to a **standard file** (for example `foo.csv: MyStandard_r20260217.csv`)
+  - optional: map a path **under `raw/`** (forward slashes) to disambiguate same name in different subfolders (for example `teamA/foo.csv: MyStandard_r20260217.csv`); this match is tried before the filename-only key
+- `raw_prefix_to_standard` (optional)
+  - map a **raw basename prefix** to an exact **standard file** key under `rules` (for example `DESK_STANDALONE_RWA_: Desk_RWA_r20260205.csv`) so changing date suffixes in the filename still match without listing every file
 - `rules`
   - per standard file column definitions:
     - `name`

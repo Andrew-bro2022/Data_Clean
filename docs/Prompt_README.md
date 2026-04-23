@@ -209,6 +209,8 @@ For each file, generate a report including:
 | V_SFT_NETSEC_r20260219.csv | V_SFT_NETSEC_NS_20260227_20260309.csv |
 | V_SFT_NFX_r20260219.csv | V_SFT_NFX_IN_OUT_20260227_20260309.csv |
 
+Implementation note: which pairs need `raw_prefix_to_standard` / extra `aliases` vs automatic `normalize_token` matching is documented in `docs/standard_raw_matching.md` (and reflected in `config/file_rules.yaml`).
+
 ---
 
 ## 8. Technical Requirements

@@ -36,17 +36,47 @@ def _infer_type_and_format(sample_value: str) -> tuple[str, str | None]:
     return "string", None
 
 
-def build_rules_from_standards(standards_dir: Path, output_yaml: Path, default_read: dict[str, object]) -> dict[str, FileRule]:
+def build_rules_from_standards(
+    standards_dir: Path,
+    output_yaml: Path,
+    default_read: dict[str, object],
+    *,
+    merge_existing: bool = True,
+) -> tuple[dict[str, FileRule], bool]:
     rules: dict[str, FileRule] = {}
+    old_data: dict = {}
+    if merge_existing and output_yaml.exists():
+        with output_yaml.open("r", encoding="utf-8") as f:
+            old_data = yaml.safe_load(f) or {}
+
+    merged_defaults = dict(old_data.get("defaults", {}))
+    merged_defaults.update(default_read)
+
+    encoding = str(merged_defaults.get("encoding", "utf-8"))
+    sep = str(merged_defaults.get("delimiter", ","))
+    skiprows = int(merged_defaults.get("skiprows", 0))
+
     payload: dict[str, object] = {
-        "defaults": default_read,
-        "header_match_threshold": 0.6,
-        "mappings": {},
+        "defaults": merged_defaults,
+        "header_match_threshold": float(old_data.get("header_match_threshold", 0.6)),
+        "mappings": dict(old_data.get("mappings", {})) if merge_existing else {},
+        "raw_prefix_to_standard": dict(old_data.get("raw_prefix_to_standard", {})) if merge_existing else {},
         "rules": {},
     }
 
+    old_rules: dict = old_data.get("rules", {}) if merge_existing else {}
+
     for path in sorted(standards_dir.glob("*.csv")):
-        frame = pd.read_csv(path, header=None, nrows=2, dtype=str)
+        frame = pd.read_csv(
+            path,
+            header=None,
+            nrows=2,
+            dtype=str,
+            encoding=encoding,
+            sep=sep,
+            skiprows=skiprows,
+            keep_default_na=False,
+        )
         if frame.empty or len(frame) < 2:
             continue
         columns = frame.iloc[0].fillna("").tolist()
@@ -62,31 +92,44 @@ def build_rules_from_standards(standards_dir: Path, output_yaml: Path, default_r
                 item["date_format"] = date_format
             yaml_columns.append(item)
 
+        old_r = old_rules.get(path.name, {})
+        read_opts = dict(merged_defaults)
+        read_opts.update(old_r.get("read", {}))
+
+        aliases: list[str] = [path.stem]
+        for a in old_r.get("aliases", []):
+            if a not in aliases:
+                aliases.append(a)
+
         file_rule = FileRule(
             standard_file=path.name,
-            read=dict(default_read),
+            read=read_opts,
             columns=column_rules,
-            aliases=[path.stem],
+            aliases=aliases,
         )
         rules[path.name] = file_rule
         payload["rules"][path.name] = {
-            "aliases": [path.stem],
-            "read": dict(default_read),
+            "aliases": aliases,
+            "read": read_opts,
             "columns": yaml_columns,
         }
 
     output_yaml.parent.mkdir(parents=True, exist_ok=True)
     with output_yaml.open("w", encoding="utf-8") as f:
         yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=False)
-    return rules
+    return rules, bool(old_data) and merge_existing
 
 
-def load_rules(yaml_path: Path) -> tuple[dict[str, FileRule], dict[str, str], float, dict[str, object]]:
+def load_rules(yaml_path: Path) -> tuple[dict[str, FileRule], dict[str, str], float, dict[str, object], dict[str, str]]:
     with yaml_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
     defaults = data.get("defaults", {})
     mappings = data.get("mappings", {})
+    prefix_to_standard = data.get("raw_prefix_to_standard", {}) or {}
+    if not isinstance(prefix_to_standard, dict):
+        prefix_to_standard = {}
+    prefix_to_standard = {str(k): str(v) for k, v in prefix_to_standard.items()}
     threshold = float(data.get("header_match_threshold", 0.6))
 
     raw_rules = data.get("rules", {})
@@ -111,7 +154,7 @@ def load_rules(yaml_path: Path) -> tuple[dict[str, FileRule], dict[str, str], fl
             aliases=rule.get("aliases", []),
         )
 
-    return rules, mappings, threshold, defaults
+    return rules, mappings, threshold, defaults, prefix_to_standard
 
 
 def parse_args() -> argparse.Namespace:
@@ -122,6 +165,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--encoding", type=str, default="utf-8", help="Default CSV encoding")
     parser.add_argument("--delimiter", type=str, default=",", help="Default CSV delimiter")
     parser.add_argument("--skiprows", type=int, default=0, help="Default CSV skiprows")
+    parser.add_argument(
+        "--no-merge",
+        action="store_true",
+        help="Ignore existing file_rules.yaml (reset mappings, raw_prefix_to_standard, and rule merges)",
+    )
     return parser.parse_args()
 
 
@@ -134,8 +182,15 @@ def main() -> None:
         "delimiter": args.delimiter,
         "skiprows": args.skiprows,
     }
-    rules = build_rules_from_standards(standards_dir, output_yaml, default_read)
+    rules, did_merge = build_rules_from_standards(
+        standards_dir,
+        output_yaml,
+        default_read,
+        merge_existing=not args.no_merge,
+    )
     print(f"Generated {output_yaml} with {len(rules)} standard rule(s).")
+    if did_merge:
+        print("Merged prior mappings, raw_prefix_to_standard, aliases, read, defaults, and header_match_threshold.")
 
 
 if __name__ == "__main__":

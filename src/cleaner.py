@@ -36,5 +36,5 @@ def _clean_scalar(value: object) -> str | None:
 def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     cleaned = df.map(_clean_scalar)
     cleaned = cleaned.dropna(axis=0, how="all")
-    cleaned = cleaned.dropna(axis=1, how="all")
+    # Keep columns that exist in the header but are entirely empty after cleaning (do not drop all-null columns).
     return cleaned

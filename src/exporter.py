@@ -9,11 +9,10 @@ from src.types import ProcessingResult
 from src.utils import ensure_dir
 
 
-def save_cleaned(df: pd.DataFrame, output_dir: Path, raw_filename: str) -> Path:
-    ensure_dir(output_dir)
-    target = output_dir / raw_filename
-    df.to_csv(target, index=False)
-    return target
+def save_cleaned(df: pd.DataFrame, output_csv_path: Path) -> Path:
+    ensure_dir(output_csv_path.parent)
+    df.to_csv(output_csv_path, index=False)
+    return output_csv_path
 
 
 def save_report_excel(results: list[ProcessingResult], reports_dir: Path) -> Path:
@@ -27,6 +26,7 @@ def save_report_excel(results: list[ProcessingResult], reports_dir: Path) -> Pat
         summary_rows.append(
             {
                 "file_name": r.file_name,
+                "raw_subfolder": r.raw_subfolder,
                 "status": r.status,
                 "header_row_index": r.header_row_index,
                 "rows_before": r.rows_before,
@@ -41,6 +41,7 @@ def save_report_excel(results: list[ProcessingResult], reports_dir: Path) -> Pat
             column_rows.append(
                 {
                     "file_name": r.file_name,
+                    "raw_subfolder": r.raw_subfolder,
                     "column_name": col,
                     "null_count": null_count,
                     "type_conversion_issues": r.type_conversion_issues.get(col, 0),

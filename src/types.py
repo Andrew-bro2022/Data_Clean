@@ -31,5 +31,6 @@ class ProcessingResult:
     extra_columns: list[str]
     type_conversion_issues: dict[str, int]
     null_count_by_column: dict[str, int]
+    raw_subfolder: str = ""
     error_message: str | None = None
     output_path: Path | None = None
