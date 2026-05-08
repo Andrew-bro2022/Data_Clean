@@ -7,6 +7,8 @@ This project provides a modular Python pipeline to clean raw financial CSV files
 - cleaned CSV outputs in `output/`
 - one Excel report per run in `reports/`
 
+Optionally, a **pre-clean audit** (separate from the pipeline) can scan `raw/` and write one Excel workbook under `audit/output/`; see [audit/README_AUDIT.md](audit/README_AUDIT.md).
+
 The pipeline supports:
 
 - batch mode (process files in `raw/` and **one subdirectory level**: `raw/*.csv` and `raw/*/*.csv`).
@@ -25,6 +27,7 @@ data_clean/
 │  └─ file_rules.yaml   # Runtime rules (mapping, types, formats, read options)
 ├─ output/              # Cleaned CSV files
 ├─ reports/             # Excel run reports
+├─ audit/               # Pre-clean audit code; reports under audit/output/
 ├─ logs/                # Pipeline logs
 ├─ src/                 # Python source code
 ├─ docs/                # Per-script documentation
@@ -55,6 +58,20 @@ Rule config is stored in `config/file_rules.yaml`.
 
 - If `file_rules.yaml` does not exist, the pipeline auto-generates it from `standards/`.
 - If `file_rules.yaml` already exists, the pipeline uses it directly.
+
+**Date columns:** The **standard** representation is **`YYYY-MM-DD`**. Put that shape in standard row 2 and set `date_format: '%Y-%m-%d'` in YAML. Raw data may still use other common formats (for example US `MM/DD/YYYY`); the pipeline tries the YAML format first, then infers the rest. **Output CSV** always writes dates as **`YYYY-MM-DD`**.
+
+---
+
+## Pre-clean audit (optional)
+
+Run **before** the main pipeline to flag structure issues, strict date parse failures, suspicious numeric cells, phantom rows at the file tail, and total-like rows. Requires an existing `config/file_rules.yaml`.
+
+```bash
+python -m audit.main --base-dir .
+```
+
+Details, CLI flags (`--file`, `--max-data-rows`), and how to read the workbook: [audit/README_AUDIT.md](audit/README_AUDIT.md).
 
 ---
 
@@ -199,6 +216,7 @@ Before running:
 2. Confirm standard CSV files exist in `standards/`.
 3. Review `config/file_rules.yaml` for local encoding/delimiter/mapping differences.
 4. Put raw files into `raw/`.
+5. (Optional) Run `python -m audit.main --base-dir .` and review `audit/output/audit_*.xlsx` before a full clean.
 
 After running:
 

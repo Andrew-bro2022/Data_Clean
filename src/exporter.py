@@ -8,10 +8,12 @@ import pandas as pd
 from src.types import ProcessingResult
 from src.utils import ensure_dir
 
+OUTPUT_DATE_FORMAT = "%Y-%m-%d"
+
 
 def save_cleaned(df: pd.DataFrame, output_csv_path: Path) -> Path:
     ensure_dir(output_csv_path.parent)
-    df.to_csv(output_csv_path, index=False)
+    df.to_csv(output_csv_path, index=False, date_format=OUTPUT_DATE_FORMAT)
     return output_csv_path
 
 

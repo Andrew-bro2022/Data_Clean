@@ -12,8 +12,9 @@ Converts columns to expected types and derives per-file status.
   - convert via `pandas.to_numeric(errors="coerce")`
   - `int` values are rounded and cast to nullable `Int64`
 - Date types (`date`, `datetime`):
-  - parse via `pandas.to_datetime`
-  - prefer YAML `date_format` when provided
+  - **Canonical output** in CSV is always **`YYYY-MM-DD`** (see `save_cleaned` `date_format`).
+  - **Parsing**: first try YAML `date_format` (should be `%Y-%m-%d` for new standards); any non-empty cell that still fails is parsed again with `pandas.to_datetime(..., errors="coerce", dayfirst=False)` so legacy shapes (e.g. `MM/DD/YYYY`) can still be read.
+  - Parsed values are **normalized** to midnight (date-only).
 - String type:
   - cast to pandas `string`
 

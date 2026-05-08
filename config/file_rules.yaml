@@ -3,7 +3,17 @@ defaults:
   delimiter: ','
   skiprows: 0
 header_match_threshold: 0.6
-mappings: {}
+mappings:
+  _audit_fixtures/audit_clean_ok.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_bad_date.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_quoted_numeric.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_quoted_comma_numeric.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_dollar_amount.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_missing_currency.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_extra_column.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_phantom_tail.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_total_keyword.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_header_not_found.csv: BA_CVA_Allocation_r20260217.csv
 raw_prefix_to_standard:
   SACVA_SENSITIVITY_PREAGGREG_BNS_EXCL_GT_: SACVA_Sensitivity_BNS_r20260217.csv
   SACVA_SENSITIVITY_PREAGGREG_ENTERPRISE_: SACVA_Sensitivity_ENT_r20260217.csv
@@ -56,7 +66,7 @@ rules:
       type: string
     - name: Reporting_Date
       type: date
-      date_format: '%m/%d/%Y'
+      date_format: '%Y-%m-%d'
     - name: RWA_Value
       type: float
   MRC_BL_RWA_r20260205.csv:

@@ -9,6 +9,7 @@ import yaml
 
 from src.types import ColumnRule, FileRule
 
+# Prefer %Y-%m-%d first: canonical standard for new standard-file row-2 samples.
 DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y")
 
 

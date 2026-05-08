@@ -4,6 +4,27 @@ import pandas as pd
 
 from src.types import ColumnRule
 
+OUTPUT_DATE_FORMAT = "%Y-%m-%d"
+
+
+def _parse_flexible_dates(series: pd.Series, primary_fmt: str | None) -> pd.Series:
+    """Try YAML date_format first; for remaining non-empty cells, infer with pandas (common legacy shapes)."""
+    s = series.astype("string")
+    empty = s.isna() | (s.str.strip() == "")
+
+    if primary_fmt:
+        parsed = pd.to_datetime(s, format=primary_fmt, errors="coerce")
+    else:
+        parsed = pd.to_datetime(s, errors="coerce")
+
+    still_bad = parsed.isna() & ~empty
+    if still_bad.any():
+        inferred = pd.to_datetime(s.loc[still_bad], errors="coerce", dayfirst=False)
+        parsed = parsed.copy()
+        parsed.loc[still_bad] = inferred
+
+    return parsed.dt.normalize()
+
 
 def convert_types(df: pd.DataFrame, column_rules: list[ColumnRule]) -> tuple[pd.DataFrame, dict[str, int]]:
     converted = df.copy()
@@ -24,7 +45,7 @@ def convert_types(df: pd.DataFrame, column_rules: list[ColumnRule]) -> tuple[pd.
             issues[rule.name] = int((non_null_before & numeric.isna()).sum())
         elif rule.data_type.lower() in {"date", "datetime"}:
             fmt = rule.date_format if rule.date_format else None
-            parsed = pd.to_datetime(source, format=fmt, errors="coerce")
+            parsed = _parse_flexible_dates(source, fmt)
             converted[rule.name] = parsed
             issues[rule.name] = int((non_null_before & parsed.isna()).sum())
         else:
