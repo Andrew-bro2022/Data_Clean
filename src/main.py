@@ -208,6 +208,24 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
         # These are not real inputs and would otherwise create noise in pipeline outputs/reports.
         if sf == "_audit_fixtures":
             continue
+        # Skip xlsx early (even without a matching rule).
+        # The pipeline does not process xlsx and expects manual conversion to csv.
+        if raw_file.suffix.lower() == ".xlsx":
+            results.append(
+                ProcessingResult(
+                    file_name=raw_file.name,
+                    status="skipped_xlsx",
+                    header_row_index=None,
+                    rows_before=0,
+                    rows_after=0,
+                    missing_columns=[],
+                    extra_columns=[],
+                    type_conversion_issues={},
+                    null_count_by_column={},
+                    raw_subfolder=sf,
+                )
+            )
+            continue
 
         rule = match_rule(raw_file, rules, mappings, raw_dir, prefix_to_standard)
         if rule is None:

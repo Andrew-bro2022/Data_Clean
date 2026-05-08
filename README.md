@@ -88,6 +88,7 @@ python -m src.main --base-dir .
 Cleaned outputs **mirror** the structure under `raw/`, for example `raw/teamA/foo.csv` -> `output/teamA/foo.csv`.
 
 Note: the pipeline **skips** synthetic audit regression fixtures under `raw/_audit_fixtures/`.
+Note: `.xlsx` files are always reported as `skipped_xlsx` (the pipeline does not process Excel inputs).
 
 ### 2) Single File Debug Mode
 
@@ -197,7 +198,9 @@ Update:
 ### 3) `raw/`
 
 - Place new raw files here before running.
-- `.xlsx` files are skipped and must be converted manually if needed.
+- `.xlsx` files are skipped and must be converted to CSV manually if needed.
+- `raw/_audit_fixtures/` is reserved for audit regression fixtures (the pipeline skips this folder).
+- `raw/pipeline_tests/` may contain synthetic CSVs to exercise the main cleaning pipeline (see below).
 
 ### 4) Optional code-level adjustments in `src/`
 
@@ -227,6 +230,16 @@ After running:
 3. Inspect corresponding cleaned outputs in `output/`.
 
 ---
+
+## Regression fixtures (main pipeline)
+
+To generate synthetic raw files that cover common pipeline statuses (success/warning/failed/skipped_xlsx), run:
+
+```bash
+python tools/generate_pipeline_fixtures.py
+```
+
+This writes files under `raw/pipeline_tests/`. These fixtures are designed to be processed by the pipeline (unlike `raw/_audit_fixtures/` which is audit-only).
 
 ## Script Documentation
 

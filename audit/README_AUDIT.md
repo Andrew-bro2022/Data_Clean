@@ -56,3 +56,5 @@ Synthetic CSV/XLSX files exercise structure, dates, numeric quoting/currency, ph
 ```text
 python -m audit.generate_test_raw_fixtures
 ```
+
+Note: the main cleaning pipeline intentionally skips `raw/_audit_fixtures/` to avoid fixture noise in production runs.
