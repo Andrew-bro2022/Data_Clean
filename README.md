@@ -87,6 +87,8 @@ python -m src.main --base-dir .
 
 Cleaned outputs **mirror** the structure under `raw/`, for example `raw/teamA/foo.csv` -> `output/teamA/foo.csv`.
 
+Note: the pipeline **skips** synthetic audit regression fixtures under `raw/_audit_fixtures/`.
+
 ### 2) Single File Debug Mode
 
 Process one file; path is **relative to `--base-dir`** and must lie under `raw/`:

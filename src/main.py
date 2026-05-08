@@ -204,6 +204,10 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
 
         if not raw_file.exists() or raw_file.is_dir():
             continue
+        # Ignore synthetic fixtures used to regression-test audit behavior.
+        # These are not real inputs and would otherwise create noise in pipeline outputs/reports.
+        if sf == "_audit_fixtures":
+            continue
 
         rule = match_rule(raw_file, rules, mappings, raw_dir, prefix_to_standard)
         if rule is None:
