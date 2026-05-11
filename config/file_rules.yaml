@@ -14,11 +14,21 @@ mappings:
   _audit_fixtures/audit_phantom_tail.csv: BA_CVA_Allocation_r20260217.csv
   _audit_fixtures/audit_total_keyword.csv: BA_CVA_Allocation_r20260217.csv
   _audit_fixtures/audit_header_not_found.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_multi_extra.csv: BA_CVA_Allocation_r20260217.csv
+  _audit_fixtures/audit_wide_multi_missing.csv: Test_Wide_Audit_r20260510.csv
+  _audit_fixtures/audit_wide_multi_extra.csv: Test_Wide_Audit_r20260510.csv
+  _audit_fixtures/audit_wide_multi_missing_and_extra.csv: Test_Wide_Audit_r20260510.csv
+  _audit_fixtures/audit_many_date_and_numeric_issues.csv: Test_Multi_DateNumeric_r20260511.csv
   pipeline_tests/BA_CVA_Allocation_r20260217_good.csv: BA_CVA_Allocation_r20260217.csv
   pipeline_tests/BA_CVA_Allocation_r20260217_bad_amount.csv: BA_CVA_Allocation_r20260217.csv
   pipeline_tests/BA_CVA_Allocation_r20260217_bad_trade_id.csv: BA_CVA_Allocation_r20260217.csv
   pipeline_tests/BA_CVA_Allocation_r20260217_missing_and_extra_cols.csv: BA_CVA_Allocation_r20260217.csv
   pipeline_tests/BA_CVA_Allocation_r20260217_header_not_found.csv: BA_CVA_Allocation_r20260217.csv
+  pipeline_tests/BA_CVA_Allocation_r20260217_multi_extra.csv: BA_CVA_Allocation_r20260217.csv
+  pipeline_tests/Test_Wide_multi_missing.csv: Test_Wide_Audit_r20260510.csv
+  pipeline_tests/Test_Wide_multi_extra.csv: Test_Wide_Audit_r20260510.csv
+  pipeline_tests/Test_Wide_multi_missing_and_extra.csv: Test_Wide_Audit_r20260510.csv
+  pipeline_tests/Test_Multi_many_date_numeric_issues.csv: Test_Multi_DateNumeric_r20260511.csv
 raw_prefix_to_standard:
   SACVA_SENSITIVITY_PREAGGREG_BNS_EXCL_GT_: SACVA_Sensitivity_BNS_r20260217.csv
   SACVA_SENSITIVITY_PREAGGREG_ENTERPRISE_: SACVA_Sensitivity_ENT_r20260217.csv
@@ -45,6 +55,57 @@ rules:
       type: float
     - name: Currency
       type: string
+  Test_Wide_Audit_r20260510.csv:
+    aliases:
+    - Test_Wide_Audit_r20260510
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Col_01
+      type: string
+    - name: Col_02
+      type: string
+    - name: Col_03
+      type: string
+    - name: Col_04
+      type: string
+    - name: Col_05
+      type: string
+    - name: Col_06
+      type: string
+    - name: Col_07
+      type: string
+    - name: Col_08
+      type: string
+    - name: Col_09
+      type: string
+    - name: Col_10
+      type: string
+  Test_Multi_DateNumeric_r20260511.csv:
+    aliases:
+    - Test_Multi_DateNumeric_r20260511
+    read:
+      encoding: utf-8
+      delimiter: ','
+      skiprows: 0
+    columns:
+    - name: Date_A
+      type: date
+      date_format: '%Y-%m-%d'
+    - name: Date_B
+      type: date
+      date_format: '%Y-%m-%d'
+    - name: Date_C
+      type: date
+      date_format: '%Y-%m-%d'
+    - name: Num_A
+      type: float
+    - name: Num_B
+      type: float
+    - name: Num_C
+      type: float
   Book_Sensitivities_r20260205.csv:
     aliases:
     - Book_Sensitivities_r20260205

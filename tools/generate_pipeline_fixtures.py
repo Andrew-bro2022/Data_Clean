@@ -41,6 +41,41 @@ def main() -> None:
         "Trade_ID,As_Of_Date,Amount,Extra_Col\n" "1,2025-01-15,10.0,note\n",
     )
 
+    # 4b) Multiple extra columns vs BA_CVA
+    write_text(
+        d / "BA_CVA_Allocation_r20260217_multi_extra.csv",
+        "Trade_ID,As_Of_Date,Amount,Currency,Extra_A,Extra_B,Extra_C\n"
+        "1,2025-01-15,10.0,USD,a1,b1,c1\n",
+    )
+
+    # 4c–e) Wide standard (10 cols): multi missing / multi extra / both (same as audit fixtures)
+    write_text(
+        d / "Test_Wide_multi_missing.csv",
+        "Col_01,Col_02,Col_03,Col_04,Col_05,Col_06\n" "a1,a2,a3,a4,a5,a6\n",
+    )
+    write_text(
+        d / "Test_Wide_multi_extra.csv",
+        "Col_01,Col_02,Col_03,Col_04,Col_05,Col_06,Col_07,Col_08,Col_09,Col_10,Extra_A,Extra_B,Extra_C\n"
+        "b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,x,y,z\n",
+    )
+    write_text(
+        d / "Test_Wide_multi_missing_and_extra.csv",
+        "Col_01,Col_02,Col_03,Col_04,Col_05,Col_06,Extra_A,Extra_B\n" "c1,c2,c3,c4,c5,c6,xa,xb\n",
+    )
+
+    write_text(
+        d / "Test_Multi_many_date_numeric_issues.csv",
+        "Date_A,Date_B,Date_C,Num_A,Num_B,Num_C\n"
+        "01/15/2025,01/16/2025,01/17/2025,$10,$20,$30\n",
+    )
+
+    for stale in (
+        d / "BA_CVA_Allocation_r20260217_multi_missing.csv",
+        d / "BA_CVA_Allocation_r20260217_multi_missing_and_extra.csv",
+    ):
+        if stale.exists():
+            stale.unlink()
+
     # 5) Success: Desk RWA (matches DESK_STANDALONE_RWA_ prefix). Date is MM/DD/YYYY and should parse via inference.
     write_text(
         d / "DESK_STANDALONE_RWA_20260101_20260131.csv",

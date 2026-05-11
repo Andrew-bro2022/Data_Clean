@@ -8,6 +8,31 @@ import pandas as pd
 from audit.profile import FileAuditResult
 
 
+def _yn_or_blank(value: bool | None) -> str:
+    if value is None:
+        return ""
+    return "Y" if value else "N"
+
+
+def _sorted_issue_columns(issues: list[dict], category: str) -> str:
+    """Distinct non-empty `column` values for issues of a given category."""
+    names: set[str] = set()
+    for issue in issues:
+        if issue.get("category") != category:
+            continue
+        col = issue.get("column")
+        if col is None:
+            continue
+        text = str(col).strip()
+        if text:
+            names.add(text)
+    return ", ".join(sorted(names))
+
+
+def _has_category(issues: list[dict], category: str) -> bool:
+    return any(i.get("category") == category for i in issues)
+
+
 def write_audit_excel(results: list[FileAuditResult], output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -30,10 +55,24 @@ def write_audit_excel(results: list[FileAuditResult], output_path: Path) -> Path
                 "data_columns": r.data_columns,
                 "missing_columns": ", ".join(r.missing_columns),
                 "extra_columns": ", ".join(r.extra_columns),
+                "standard_n_columns": r.standard_column_count,
+                "raw_n_columns": r.raw_column_count,
+                "column_count_match": _yn_or_blank(r.column_count_match),
+                "column_order_match": _yn_or_blank(r.column_order_match),
+                "column_order_first_mismatch_1based": r.column_order_first_mismatch_1based
+                if r.column_order_first_mismatch_1based is not None
+                else "",
+                "column_order_mismatch_expected": r.column_order_mismatch_expected or "",
+                "column_order_mismatch_found": r.column_order_mismatch_found or "",
                 "issue_error_count": err_count,
                 "issue_warning_count": warn_count,
                 "issue_total": len(r.issues),
                 "categories": ", ".join(f"{k}:{v}" for k, v in sorted(cats.items())),
+                # Per-category column rollups (see issues_detail for row-level detail).
+                "date_issue_columns": _sorted_issue_columns(r.issues, "DATE"),
+                "numeric_issue_columns": _sorted_issue_columns(r.issues, "NUMERIC"),
+                "phantom_issue": "Y" if _has_category(r.issues, "PHANTOM") else "",
+                "total_keyword_issue": "Y" if _has_category(r.issues, "TOTAL") else "",
                 "read_error": r.error_message or "",
             }
         )

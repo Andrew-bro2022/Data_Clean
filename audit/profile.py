@@ -12,6 +12,53 @@ from src.types import FileRule
 from src.utils import raw_subfolder_under_raw
 
 
+def _analyze_column_count_and_order(
+    standard_ordered: list[str],
+    raw_ordered: list[str],
+) -> dict:
+    """
+    Compare standard vs raw header by position (left to right).
+
+    - If column counts differ, treat as a layout/order problem and still locate
+      the first positional name mismatch if any; otherwise the first difference
+      is at position min(n_standard, n_raw)+1 (extra or missing tail).
+    - If counts match, first mismatch is the first index where names differ.
+    """
+    n_s, n_r = len(standard_ordered), len(raw_ordered)
+    count_match = n_s == n_r
+    pos: int | None = None
+    expected = ""
+    found = ""
+
+    for i in range(min(n_s, n_r)):
+        if standard_ordered[i] != raw_ordered[i]:
+            pos = i + 1
+            expected = standard_ordered[i]
+            found = raw_ordered[i]
+            break
+    else:
+        if n_s != n_r:
+            k = min(n_s, n_r)
+            pos = k + 1
+            if n_r > n_s:
+                expected = "(no further standard column)"
+                found = raw_ordered[k] if k < n_r else ""
+            else:
+                expected = standard_ordered[k] if k < n_s else ""
+                found = "(no further raw column)"
+
+    layout_ok = count_match and pos is None
+    return {
+        "standard_n": n_s,
+        "raw_n": n_r,
+        "count_match": count_match,
+        "layout_ok": layout_ok,
+        "first_mismatch_1based": pos,
+        "expected": expected,
+        "found": found,
+    }
+
+
 @dataclass
 class FileAuditResult:
     file_name: str
@@ -25,6 +72,13 @@ class FileAuditResult:
     extra_columns: list[str]
     issues: list[dict] = field(default_factory=list)
     error_message: str | None = None
+    standard_column_count: int = 0
+    raw_column_count: int = 0
+    column_count_match: bool | None = None
+    column_order_match: bool | None = None
+    column_order_first_mismatch_1based: int | None = None
+    column_order_mismatch_expected: str = ""
+    column_order_mismatch_found: str = ""
 
 
 def _read_csv_audit(
@@ -139,6 +193,13 @@ def audit_file(
                 missing_columns=[],
                 extra_columns=[],
                 issues=issues,
+                standard_column_count=len(rule.columns),
+                raw_column_count=0,
+                column_count_match=None,
+                column_order_match=None,
+                column_order_first_mismatch_1based=None,
+                column_order_mismatch_expected="",
+                column_order_mismatch_found="",
             )
 
         df = _read_csv_audit(raw_path, header=header_idx, read_opts=read_opts, nrows=None)
@@ -181,6 +242,25 @@ def audit_file(
                 }
             )
 
+        layout = _analyze_column_count_and_order(standard_cols, header_column_names)
+        column_count_match = layout["count_match"]
+        column_order_match = layout["layout_ok"]
+        if not layout["layout_ok"]:
+            issues.append(
+                {
+                    "category": "COLUMN_LAYOUT",
+                    "severity": "warning",
+                    "column": None,
+                    "message": (
+                        f"Column count/order: standard_n={layout['standard_n']} raw_n={layout['raw_n']}; "
+                        f"first difference at 1-based position {layout['first_mismatch_1based']}: "
+                        f"expected {layout['expected']!r}, found {layout['found']!r}"
+                    ),
+                    "count": None,
+                    "sample_rows": [],
+                }
+            )
+
         issues.extend(
             run_value_checks(
                 df,
@@ -202,6 +282,13 @@ def audit_file(
             missing_columns=missing,
             extra_columns=extra,
             issues=issues,
+            standard_column_count=layout["standard_n"],
+            raw_column_count=layout["raw_n"],
+            column_count_match=column_count_match,
+            column_order_match=column_order_match,
+            column_order_first_mismatch_1based=layout["first_mismatch_1based"],
+            column_order_mismatch_expected=layout["expected"],
+            column_order_mismatch_found=layout["found"],
         )
     except Exception as exc:  # noqa: BLE001
         return FileAuditResult(

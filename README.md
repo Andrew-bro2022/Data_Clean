@@ -241,6 +241,8 @@ python tools/generate_pipeline_fixtures.py
 
 This writes files under `raw/pipeline_tests/`. These fixtures are designed to be processed by the pipeline (unlike `raw/_audit_fixtures/` which is audit-only).
 
+`Test_Wide_multi_*.csv` files use the synthetic 10-column standard `Test_Wide_Audit_r20260510.csv` so **multiple** missing/extra columns can appear while still passing the default `header_match_threshold` (a 4-column standard cannot show two missing columns and still match at 0.6).
+
 ## Script Documentation
 
 Detailed per-script docs are available in `docs/`:

@@ -1,5 +1,15 @@
 # Config guide (`config/file_rules.yaml`)
 
+## Company / clean deployment
+
+For handing off the codebase without dev-only test mappings or synthetic standards:
+
+- Use **`file_rules.company.template.yaml`** as a starting point: copy it to `config/file_rules.yaml` on the target machine (or replace your existing file).
+  - `mappings` is empty — add only the raw→standard pairs your feeds need.
+  - Synthetic rules **`Test_Wide_*`** and **`Test_Multi_*`** are omitted (they are not under `standards/`).
+- Optionally remove folders **`raw/_audit_fixtures/`** and **`raw/pipeline_tests/`** if you do not run regression fixtures there.
+- Keep **`standards/`** CSVs aligned with the keys under `rules` (or run `python -m src.reader --base-dir .` after updating `standards/`).
+
 This project is driven by `config/file_rules.yaml`. Both **audit** and **data clean** load it to determine:
 
 - how to read raw files (encoding/delimiter/skiprows)
@@ -77,6 +87,9 @@ python -m src.main --base-dir .
 - **Data clean**: if a raw file does **not** match a rule, it is reported as **failed** (`No matching standard rule`).
 
 ## Common troubleshooting
+
+- **Many missing columns vs standard**
+  - With `header_match_threshold: 0.6`, a header row must match at least 60% of standard column names. For a 4-column standard you can have at most **one** missing column while still finding a header. To regression-test **multiple** missing columns end-to-end, this repo includes a synthetic 10-column standard `Test_Wide_Audit_r20260510.csv` under `rules` and matching fixtures under `raw/_audit_fixtures/` and `raw/pipeline_tests/` (see `audit/generate_test_raw_fixtures.py` and `tools/generate_pipeline_fixtures.py`).
 
 - **Header not found**
   - Increase `header_match_threshold` sensitivity (lower threshold) only if truly needed.
