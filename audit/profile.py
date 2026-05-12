@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from audit.checks import run_value_checks
+from audit.constants import READ_ENCODING_FALLBACKS
 from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.types import FileRule
@@ -87,21 +88,50 @@ def _read_csv_audit(
     header: int | None,
     read_opts: dict,
     nrows: int | None = None,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, str]:
+    """Read CSV; try YAML encoding first, then READ_ENCODING_FALLBACKS. Returns (df, encoding_used)."""
     delimiter = read_opts.get("delimiter", ",")
-    encoding = read_opts.get("encoding", "utf-8")
+    primary = str(read_opts.get("encoding", "utf-8")).strip() or "utf-8"
     skiprows = int(read_opts.get("skiprows", 0))
-    return pd.read_csv(
-        path,
-        header=header,
-        dtype=str,
-        keep_default_na=False,
-        sep=delimiter,
-        encoding=encoding,
-        skiprows=skiprows,
-        nrows=nrows,
-        engine="python",
-    )
+    candidates = [primary]
+    for fb in READ_ENCODING_FALLBACKS:
+        if fb.lower() != primary.lower():
+            candidates.append(fb)
+    last_err: UnicodeDecodeError | None = None
+    for enc in candidates:
+        try:
+            df = pd.read_csv(
+                path,
+                header=header,
+                dtype=str,
+                keep_default_na=False,
+                sep=delimiter,
+                encoding=enc,
+                skiprows=skiprows,
+                nrows=nrows,
+                engine="python",
+            )
+            return df, enc
+        except UnicodeDecodeError as exc:
+            last_err = exc
+            continue
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("_read_csv_audit: no encoding candidate succeeded")
+
+
+def _encoding_fallback_issue(configured: str, actual: str) -> dict:
+    return {
+        "category": "FILE",
+        "severity": "warning",
+        "column": None,
+        "message": (
+            f"CSV decoded with {actual!r} because {configured!r} failed. "
+            "Set defaults.encoding or this rule's read.encoding in file_rules.yaml to match the source file."
+        ),
+        "count": None,
+        "sample_rows": [],
+    }
 
 
 def audit_file(
@@ -144,11 +174,15 @@ def audit_file(
     rule = match_rule(raw_path, rules, mappings, raw_dir, prefix_map)
     if rule is not None:
         read_opts.update(rule.read)
+    configured_encoding = str(read_opts.get("encoding", "utf-8")).strip() or "utf-8"
 
     try:
         if rule is None:
-            df0 = _read_csv_audit(raw_path, header=None, read_opts=read_opts, nrows=max_data_rows)
+            df0, enc = _read_csv_audit(raw_path, header=None, read_opts=read_opts, nrows=max_data_rows)
+            read_opts["encoding"] = enc
             issues: list[dict] = []
+            if enc.lower() != configured_encoding.lower():
+                issues.append(_encoding_fallback_issue(configured_encoding, enc))
             issues.extend(run_value_checks(df0, []))
             return FileAuditResult(
                 file_name=name,
@@ -163,15 +197,25 @@ def audit_file(
                 issues=issues,
             )
 
-        preview = _read_csv_audit(raw_path, header=None, read_opts=read_opts, nrows=30)
+        used_encoding_fallback = False
+        preview, enc = _read_csv_audit(raw_path, header=None, read_opts=read_opts, nrows=30)
+        read_opts["encoding"] = enc
+        if enc.lower() != configured_encoding.lower():
+            used_encoding_fallback = True
         header_idx = detect_header_row(
             preview.fillna("").values.tolist(),
             [c.name for c in rule.columns],
             threshold,
         )
         if header_idx is None:
-            df0 = _read_csv_audit(raw_path, header=None, read_opts=read_opts, nrows=max_data_rows)
-            issues = [
+            df0, enc = _read_csv_audit(raw_path, header=None, read_opts=read_opts, nrows=max_data_rows)
+            read_opts["encoding"] = enc
+            if enc.lower() != configured_encoding.lower():
+                used_encoding_fallback = True
+            issues = []
+            if used_encoding_fallback:
+                issues.append(_encoding_fallback_issue(configured_encoding, enc))
+            issues.append(
                 {
                     "category": "STRUCTURE",
                     "severity": "error",
@@ -180,7 +224,7 @@ def audit_file(
                     "count": None,
                     "sample_rows": [],
                 }
-            ]
+            )
             issues.extend(run_value_checks(df0, []))
             return FileAuditResult(
                 file_name=name,
@@ -202,7 +246,10 @@ def audit_file(
                 column_order_mismatch_found="",
             )
 
-        df = _read_csv_audit(raw_path, header=header_idx, read_opts=read_opts, nrows=None)
+        df, enc = _read_csv_audit(raw_path, header=header_idx, read_opts=read_opts, nrows=None)
+        read_opts["encoding"] = enc
+        if enc.lower() != configured_encoding.lower():
+            used_encoding_fallback = True
         if max_data_rows is not None:
             df = df.head(max_data_rows)
 
@@ -219,6 +266,8 @@ def audit_file(
                 seen.add(col)
 
         issues = []
+        if used_encoding_fallback:
+            issues.append(_encoding_fallback_issue(configured_encoding, read_opts["encoding"]))
         if missing:
             issues.append(
                 {
@@ -291,6 +340,13 @@ def audit_file(
             column_order_mismatch_found=layout["found"],
         )
     except Exception as exc:  # noqa: BLE001
+        msg = str(exc)
+        low = msg.lower()
+        if isinstance(exc, UnicodeDecodeError) or "codec can't decode" in low or "invalid continuation byte" in low:
+            msg += (
+                " Hint: the file may be Windows-1252 / Latin-1. "
+                "Set defaults.encoding or this rule's read.encoding (e.g. cp1252 or latin-1) in file_rules.yaml."
+            )
         return FileAuditResult(
             file_name=name,
             raw_subfolder=sf,
@@ -302,5 +358,5 @@ def audit_file(
             missing_columns=[],
             extra_columns=[],
             issues=[],
-            error_message=str(exc),
+            error_message=msg,
         )

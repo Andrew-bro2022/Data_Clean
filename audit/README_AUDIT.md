@@ -6,6 +6,7 @@ Standalone step that runs **before** the main cleaning pipeline. It scans CSVs u
 
 - `config/file_rules.yaml` must be present. The audit cannot run without it.
 - If a raw file’s path does not match any rule, the tool still performs **file-level** checks (read errors, phantom trailer, total-like rows). It does **not** apply standard column names, date formats, or numeric column rules for that file.
+- If the configured encoding fails (common: UTF-8 vs Windows-1252), audit **retries** reads with `cp1252` then `latin-1`, updates `read_opts["encoding"]` for that file, and adds a **`FILE` warning** suggesting you set `defaults.encoding` or the rule’s `read.encoding` in YAML so the main pipeline matches.
 
 ## How to run
 

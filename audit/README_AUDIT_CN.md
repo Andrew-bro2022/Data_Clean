@@ -6,6 +6,7 @@
 
 - 必须存在 `config/file_rules.yaml`，否则 audit 无法运行。
 - 若 raw 路径 **未匹配到任何规则**，仍会执行 **文件级** 检查（读入错误、尾部 phantom、合计关键字等），但 **不会** 对该文件套用标准列名、日期格式或数值列规则。
+- 若 YAML 中配置的编码读失败（常见：文件实为 Windows-1252 却用 UTF-8），audit 会 **依次用 `cp1252`、`latin-1` 重试** 读入，并写入一条 **`FILE` 警告**，提示在 `file_rules.yaml` 里设置 `defaults.encoding` 或该规则的 `read.encoding`，以便与主清洗一致。
 
 ## 如何运行
 

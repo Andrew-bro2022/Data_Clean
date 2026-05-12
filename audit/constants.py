@@ -11,3 +11,6 @@ TOTAL_KEYWORDS = ("total", "grand total", "sum")
 
 # Sample at most this many row numbers per issue (1-based data rows)
 SAMPLE_ROW_LIMIT = 10
+
+# If YAML/read_opts encoding fails (e.g. byte 0xc9 under utf-8), try these for audit reads only.
+READ_ENCODING_FALLBACKS = ("cp1252", "latin-1")
