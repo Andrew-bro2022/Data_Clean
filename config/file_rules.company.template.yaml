@@ -6,7 +6,7 @@
 #
 # After copy:
 # 1) Ensure standards/*.csv match your firm (same filenames as keys under rules).
-# 2) Fill mappings and/or raw_prefix_to_standard for how raw files land under raw/.
+# 2) Fill mappings and/or raw_prefix_to_standard under config/file_rules.yaml (reader merges from that file, not from this template filename).
 # 3) Put production CSV under raw/ (optional: delete raw/_audit_fixtures and raw/pipeline_tests).
 #
 defaults:

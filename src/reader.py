@@ -13,6 +13,13 @@ from src.types import ColumnRule, FileRule
 DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y")
 
 
+def _mapping_or_empty(value: object) -> dict:
+    """Normalize YAML mapping keys: None, explicit null, or non-dict -> {}."""
+    if value is None or not isinstance(value, dict):
+        return {}
+    return dict(value)
+
+
 def _infer_type_and_format(sample_value: str) -> tuple[str, str | None]:
     text = str(sample_value).strip()
     if "." in text:
@@ -53,6 +60,9 @@ def build_rules_from_standards(
     merged_defaults = dict(old_data.get("defaults", {}))
     merged_defaults.update(default_read)
 
+    preserved_mappings = _mapping_or_empty(old_data.get("mappings")) if merge_existing else {}
+    preserved_prefixes = _mapping_or_empty(old_data.get("raw_prefix_to_standard")) if merge_existing else {}
+
     encoding = str(merged_defaults.get("encoding", "utf-8"))
     sep = str(merged_defaults.get("delimiter", ","))
     skiprows = int(merged_defaults.get("skiprows", 0))
@@ -60,8 +70,8 @@ def build_rules_from_standards(
     payload: dict[str, object] = {
         "defaults": merged_defaults,
         "header_match_threshold": float(old_data.get("header_match_threshold", 0.6)),
-        "mappings": dict(old_data.get("mappings", {})) if merge_existing else {},
-        "raw_prefix_to_standard": dict(old_data.get("raw_prefix_to_standard", {})) if merge_existing else {},
+        "mappings": preserved_mappings,
+        "raw_prefix_to_standard": preserved_prefixes,
         "rules": {},
     }
 
@@ -118,6 +128,11 @@ def build_rules_from_standards(
     output_yaml.parent.mkdir(parents=True, exist_ok=True)
     with output_yaml.open("w", encoding="utf-8") as f:
         yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=False)
+    if merge_existing:
+        print(
+            f"Preserved mappings: {len(preserved_mappings)} key(s), "
+            f"raw_prefix_to_standard: {len(preserved_prefixes)} key(s)."
+        )
     return rules, bool(old_data) and merge_existing
 
 
@@ -126,10 +141,8 @@ def load_rules(yaml_path: Path) -> tuple[dict[str, FileRule], dict[str, str], fl
         data = yaml.safe_load(f) or {}
 
     defaults = data.get("defaults", {})
-    mappings = data.get("mappings", {})
-    prefix_to_standard = data.get("raw_prefix_to_standard", {}) or {}
-    if not isinstance(prefix_to_standard, dict):
-        prefix_to_standard = {}
+    mappings = _mapping_or_empty(data.get("mappings"))
+    prefix_to_standard = _mapping_or_empty(data.get("raw_prefix_to_standard"))
     prefix_to_standard = {str(k): str(v) for k, v in prefix_to_standard.items()}
     threshold = float(data.get("header_match_threshold", 0.6))
 

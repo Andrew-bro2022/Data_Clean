@@ -60,8 +60,10 @@
 python -m src.reader --base-dir .
 ```
 
-说明：默认 **merge**，保留手工维护的 `mappings`、`raw_prefix_to_standard`。  
-只有需要全盘重来时用 `--no-merge`（需重新补映射/前缀）。
+说明：默认 **merge**，会从 **`config/file_rules.yaml`**（默认输出路径）里保留 `mappings`、`raw_prefix_to_standard`。  
+只有需要全盘重来时用 **`--no-merge`**（会清空这两项及规则合并，需重新补映射/前缀）。  
+若只编辑 **`file_rules.company.template.yaml`**，`src.reader` **不会**读取它；请先把模板内容复制到 **`config/file_rules.yaml`**，或把 `mappings` / `raw_prefix_to_standard` 粘过去再运行 reader。  
+运行结束后会打印本次保留的键数量；若显示 `0` 却以为有配置，请检查是否误加了 **`--no-merge`**，或旧 `file_rules.yaml` 里是否本来就没有这两项。
 
 ### B）有新 raw，应对应已有标准
 

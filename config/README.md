@@ -66,6 +66,8 @@ python -m src.reader --base-dir .
 Notes:
 - Default behavior **merges** into existing YAML, preserving your manual `mappings` and `raw_prefix_to_standard`.
 - Use `--no-merge` only if you want a clean rebuild (you will need to re-add mappings/prefixes).
+- **Merge source is always the output path** (default `config/file_rules.yaml`). Editing `file_rules.company.template.yaml` alone does not merge those edits; copy the template over `file_rules.yaml` first, or paste `mappings` / `raw_prefix_to_standard` into `file_rules.yaml`.
+- After a merge run, the reader prints how many `mappings` and `raw_prefix_to_standard` keys were preserved from the previous file (if you see `0` but expected more, the old file likely had no entries or you used `--no-merge`).
 
 ### B) You have new raw files that should use an existing standard
 
