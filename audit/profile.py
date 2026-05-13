@@ -11,6 +11,7 @@ from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.types import FileRule
 from src.utils import (
+    literal_header_missing_and_extra,
     normalize_header_column_name,
     preview_rows_for_header_detection,
     raw_subfolder_under_raw,
@@ -259,20 +260,10 @@ def audit_file(
             df = df.head(max_data_rows)
 
         standard_cols = [c.name for c in rule.columns]
-        df.columns = rename_raw_headers_to_standard(
-            [normalize_header_column_name(c) for c in df.columns],
-            standard_cols,
-        )
+        raw_exact_headers = [normalize_header_column_name(c) for c in df.columns]
+        df.columns = rename_raw_headers_to_standard(raw_exact_headers, standard_cols)
         header_column_names = [str(c) for c in df.columns]
-        header_set = set(header_column_names)
-        standard_set = set(standard_cols)
-        missing = [c for c in standard_cols if c not in header_set]
-        extra: list[str] = []
-        seen: set[str] = set()
-        for col in header_column_names:
-            if col not in standard_set and col not in seen:
-                extra.append(col)
-                seen.add(col)
+        missing, extra = literal_header_missing_and_extra(raw_exact_headers, standard_cols)
 
         issues = []
         if used_encoding_fallback:

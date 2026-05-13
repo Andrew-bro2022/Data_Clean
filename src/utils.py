@@ -66,6 +66,32 @@ def rename_raw_headers_to_standard(raw_headers: Sequence[str], standard_columns:
     return out
 
 
+def literal_header_missing_and_extra(
+    raw_headers_quote_stripped: Sequence[str],
+    standard_columns: Sequence[str],
+) -> tuple[list[str], list[str]]:
+    """
+    Exact string comparison of raw header labels (after ``normalize_header_column_name``)
+    to standard column names.
+
+    Used for ``missing_columns`` / ``extra_columns`` in reports so operators see real
+    raw spellings; canonical rename still aligns the dataframe for count/order checks
+    and cleaning.
+    """
+    raw_set = {str(h) for h in raw_headers_quote_stripped}
+    standard_list = [str(s) for s in standard_columns]
+    standard_set = set(standard_list)
+    missing = [s for s in standard_list if s not in raw_set]
+    extra: list[str] = []
+    seen: set[str] = set()
+    for r in raw_headers_quote_stripped:
+        text = str(r)
+        if text not in standard_set and text not in seen:
+            extra.append(text)
+            seen.add(text)
+    return missing, extra
+
+
 def preview_rows_for_header_detection(preview: pd.DataFrame) -> list[list[str]]:
     """Build preview matrix for header detection with column-label normalization per cell."""
     rows = preview.fillna("").astype(str).values.tolist()

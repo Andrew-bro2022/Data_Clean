@@ -14,6 +14,7 @@ from src.reader import build_rules_from_standards, load_rules
 from src.types import ProcessingResult
 from src.utils import (
     iter_raw_files_one_level,
+    literal_header_missing_and_extra,
     mirrored_output_csv_path,
     normalize_header_column_name,
     preview_rows_for_header_detection,
@@ -97,26 +98,17 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
             skiprows=skiprows,
         )
         standard_cols = [c.name for c in rule.columns]
-        df.columns = rename_raw_headers_to_standard(
-            [normalize_header_column_name(c) for c in df.columns],
-            standard_cols,
-        )
-        # Column presence for reporting: use names from the detected header row only (not post-clean drops).
+        raw_exact_headers = [normalize_header_column_name(c) for c in df.columns]
+        df.columns = rename_raw_headers_to_standard(raw_exact_headers, standard_cols)
+        # Layout vs standard uses renamed headers; missing/extra use literal raw labels.
         header_column_names = [str(c) for c in df.columns]
-        header_set = set(header_column_names)
 
         rows_before = len(df)
         cleaned = clean_dataframe(df)
         cleaned.columns = [str(c) for c in cleaned.columns]
 
         standard_set = set(standard_cols)
-        missing = [c for c in standard_cols if c not in header_set]
-        extra: list[str] = []
-        seen_extra: set[str] = set()
-        for name in header_column_names:
-            if name not in standard_set and name not in seen_extra:
-                extra.append(name)
-                seen_extra.add(name)
+        missing, extra = literal_header_missing_and_extra(raw_exact_headers, standard_cols)
 
         ordered_standard = [c for c in standard_cols if c in cleaned.columns]
         extra_ordered = [c for c in cleaned.columns if c not in standard_set]

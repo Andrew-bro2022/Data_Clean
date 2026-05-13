@@ -124,6 +124,29 @@ def test_rename_raw_headers_to_standard() -> None:
     assert rename_raw_headers_to_standard(raw, standard) == standard
 
 
+def test_literal_header_missing_and_extra_reports_raw_spellings() -> None:
+    from src.utils import literal_header_missing_and_extra, rename_raw_headers_to_standard
+
+    standard = [
+        "desk",
+        "entity_id",
+        "capital_pre_floor",
+        "capital_floor",
+        "rwa_pre_floor",
+    ]
+    raw = [
+        "desk",
+        "entity id",
+        "capital(pre floor)",
+        "capital (floor)",
+        "rwa (pre floor)",
+    ]
+    missing, extra = literal_header_missing_and_extra(raw, standard)
+    assert missing == ["entity_id", "capital_pre_floor", "capital_floor", "rwa_pre_floor"]
+    assert extra == ["entity id", "capital(pre floor)", "capital (floor)", "rwa (pre floor)"]
+    assert rename_raw_headers_to_standard(raw, standard) == standard
+
+
 def test_detect_header_row_uses_canonical_keys() -> None:
     from src.header_detector import detect_header_row
 
