@@ -166,3 +166,27 @@ def test_detect_header_row_uses_canonical_keys() -> None:
     ]
     rows = [["noise", "a", "b"], human_row, ["1", "2", "3", "4", "5"]]
     assert detect_header_row(rows, standard, 0.6) == 1
+
+
+def test_save_cleaned_uses_per_column_date_format(tmp_path: Path) -> None:
+    import pandas as pd
+
+    from src.exporter import save_cleaned
+    from src.types import ColumnRule
+
+    df = pd.DataFrame(
+        {
+            "iso_col": pd.to_datetime(["2025-01-02", "2025-03-04"]),
+            "us_col": pd.to_datetime(["2025-05-06", "2025-07-08"]),
+        }
+    )
+    rules = [
+        ColumnRule(name="iso_col", data_type="date", date_format="%Y-%m-%d"),
+        ColumnRule(name="us_col", data_type="date", date_format="%m/%d/%Y"),
+    ]
+    out = tmp_path / "t.csv"
+    save_cleaned(df, out, rules)
+    lines = out.read_text(encoding="utf-8").strip().splitlines()
+    assert lines[0] == "iso_col,us_col"
+    assert lines[1].startswith("2025-01-02,") and lines[1].endswith("05/06/2025")
+    assert lines[2].startswith("2025-03-04,") and lines[2].endswith("07/08/2025")

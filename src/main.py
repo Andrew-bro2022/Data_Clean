@@ -118,7 +118,7 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
         null_counts = converted.isna().sum().astype(int).to_dict()
         status = derive_status(header_row_found=True, has_conversion_issue=bool(issues), failed=False)
         output_csv = mirrored_output_csv_path(raw_file, raw_dir, output_root)
-        output_path = save_cleaned(converted, output_csv)
+        output_path = save_cleaned(converted, output_csv, rule.columns)
 
         return ProcessingResult(
             file_name=raw_file.name,

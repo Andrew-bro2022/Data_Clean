@@ -5,15 +5,42 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.types import ProcessingResult
+from src.types import ColumnRule, ProcessingResult
 from src.utils import ensure_dir
 
+# Used when a rule has type date/datetime but no date_format, or when save_cleaned is called without rules.
 OUTPUT_DATE_FORMAT = "%Y-%m-%d"
 
 
-def save_cleaned(df: pd.DataFrame, output_csv_path: Path) -> Path:
+def _series_to_formatted_date_strings(series: pd.Series, fmt: str) -> pd.Series:
+    """Format values as date strings using strftime codes; empty string for null/NaT."""
+    if pd.api.types.is_datetime64_any_dtype(series):
+        parsed = series
+    else:
+        parsed = pd.to_datetime(series, errors="coerce")
+    return parsed.dt.strftime(fmt).where(parsed.notna(), "")
+
+
+def save_cleaned(
+    df: pd.DataFrame,
+    output_csv_path: Path,
+    column_rules: list[ColumnRule] | None = None,
+) -> Path:
     ensure_dir(output_csv_path.parent)
-    df.to_csv(output_csv_path, index=False, date_format=OUTPUT_DATE_FORMAT)
+    if not column_rules:
+        df.to_csv(output_csv_path, index=False, date_format=OUTPUT_DATE_FORMAT)
+        return output_csv_path
+
+    out = df.copy()
+    for rule in column_rules:
+        if rule.name not in out.columns:
+            continue
+        if rule.data_type.lower() not in {"date", "datetime"}:
+            continue
+        fmt = rule.date_format or OUTPUT_DATE_FORMAT
+        out[rule.name] = _series_to_formatted_date_strings(out[rule.name], fmt)
+
+    out.to_csv(output_csv_path, index=False, date_format=OUTPUT_DATE_FORMAT)
     return output_csv_path
 
 

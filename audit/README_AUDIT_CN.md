@@ -52,7 +52,7 @@ python -m audit.main --base-dir .
 | 范围 | 行为 |
 |------|------|
 | **Structure** | 表头检测及列集合与 YAML `columns` 对比，逻辑与清洗流水线一致。 |
-| **Dates** | 日期列按规则中的 `date_format` **严格** 解析（与清洗后期望的 `YYYY-MM-DD` 形态对齐）。 |
+| **Dates** | 日期列按规则中的 `date_format` **严格**解析；清洗输出 CSV 中每个日期列也按该列的 `date_format` 写出（未配置时默认 `%Y-%m-%d`）。 |
 | **Numbers** | 接受美加千分位（如 `1,234.56`）。其它无法解析为数值的会标记。双引号包裹的数值外观 → 警告；引号内带千分位逗号（如 `"1,234"`）→ 升级上报。数值列中含 `$` → 警告。 |
 | **Phantom rows** | 数据 **底部** 连续多行大多为空白或逗号填充（阈值见 `audit/constants.py`）。 |
 | **Total-like rows** | 在数据 **末尾一段行** 内扫描 `Total`、`Grand Total`、`SUM` 等关键字（见 `TAIL_KEYWORD_SCAN_ROWS`）。 |

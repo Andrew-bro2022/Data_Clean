@@ -59,7 +59,7 @@ Rule config is stored in `config/file_rules.yaml`.
 - If `file_rules.yaml` does not exist, the pipeline auto-generates it from `standards/`.
 - If `file_rules.yaml` already exists, the pipeline uses it directly.
 
-**Date columns:** The **standard** representation is **`YYYY-MM-DD`**. Put that shape in standard row 2 and set `date_format: '%Y-%m-%d'` in YAML. Raw data may still use other common formats (for example US `MM/DD/YYYY`); the pipeline tries the YAML format first, then infers the rest. **Output CSV** always writes dates as **`YYYY-MM-DD`**.
+**Date columns:** Put representative values in standard row 2 and set each column's `date_format` in YAML (for example `'%Y-%m-%d'` or `'%m/%d/%Y'`). Raw cells may still use other common shapes; the pipeline tries the YAML format first, then infers the rest when parsing. **Output CSV** writes each date/datetime column using **that column's `date_format`** from the rule. If `date_format` is omitted for a date column, the writer falls back to **`%Y-%m-%d`**.
 
 ---
 

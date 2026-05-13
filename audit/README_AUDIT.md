@@ -52,7 +52,7 @@ All findings in one table: severity, check name, column (if relevant), row index
 | Area | Behavior |
 |------|----------|
 | **Structure** | Header detection and column set compared to the YAML `columns` list, using the same matching logic as the clean pipeline. |
-| **Dates** | Values in date columns are parsed strictly with the rule’s `date_format` (aligned with expected `YYYY-MM-DD`-style output from cleaning). |
+| **Dates** | Values in date columns are parsed strictly with the rule’s `date_format` (cleaning writes each date column using that same `date_format` in CSV, or `%Y-%m-%d` when omitted). |
 | **Numbers** | US/Canada grouping is accepted (e.g. `1,234.56`). Other values that do not parse as numbers are flagged. Double-quoted numeric-looking cells are warnings; quoted values that contain a thousands comma (e.g. `"1,234"`) are escalated. `$` in numeric columns is a warning. |
 | **Phantom rows** | A long run of mostly empty or comma-padded rows at the **bottom** of the audited data (see `PHANTOM_MIN_CONSECUTIVE` in `audit/constants.py`). |
 | **Total-like rows** | Keywords such as `Total`, `Grand Total`, and `SUM` in the last portion of the data (see `TAIL_KEYWORD_SCAN_ROWS` in `audit/constants.py`). |

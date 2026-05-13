@@ -59,7 +59,7 @@ pip install -r requirements.txt
 - 若不存在 `file_rules.yaml`，流水线会从 `standards/` **自动生成**。
 - 若已存在 `file_rules.yaml`，流水线**直接使用**。
 
-**日期列：** 标准形态为 **`YYYY-MM-DD`**。在标准第 2 行使用该形状，并在 YAML 中设置 `date_format: '%Y-%m-%d'`。原始数据仍可为其它常见格式（例如美式 `MM/DD/YYYY`）；流水线会先尝试 YAML 格式再推断。**输出 CSV** 中的日期一律写为 **`YYYY-MM-DD`**。
+**日期列：** 在标准第 2 行放代表性样本，并在 YAML 中为每列设置 `date_format`（例如 `'%Y-%m-%d'` 或 `'%m/%d/%Y'`）。原始数据仍可为其它常见写法；解析时先按 YAML 格式再推断。**输出 CSV** 中每个日期/时间列按**该列规则里的 `date_format`** 写入。若日期列未配置 `date_format`，写出时默认使用 **`%Y-%m-%d`**。
 
 ---
 

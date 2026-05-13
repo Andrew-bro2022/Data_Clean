@@ -4,7 +4,7 @@
 Writes cleaned output CSV files and run-level Excel reports.
 
 ## Key Functions
-- `save_cleaned(df, output_dir, raw_filename)`: writes cleaned CSV with original raw filename.
+- `save_cleaned(df, output_csv_path, column_rules=None)`: writes cleaned CSV. Date/datetime columns use each rule's `date_format` when `column_rules` is provided; otherwise `to_csv` uses default `%Y-%m-%d` for any remaining datetime columns.
 - `save_report_excel(results, reports_dir)`: writes one Excel report per run.
 
 ## Report Structure
