@@ -10,7 +10,12 @@ from audit.constants import READ_ENCODING_FALLBACKS
 from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.types import FileRule
-from src.utils import normalize_header_column_name, preview_rows_for_header_detection, raw_subfolder_under_raw
+from src.utils import (
+    normalize_header_column_name,
+    preview_rows_for_header_detection,
+    raw_subfolder_under_raw,
+    rename_raw_headers_to_standard,
+)
 
 
 def _analyze_column_count_and_order(
@@ -253,10 +258,13 @@ def audit_file(
         if max_data_rows is not None:
             df = df.head(max_data_rows)
 
-        df.columns = [normalize_header_column_name(c) for c in df.columns]
+        standard_cols = [c.name for c in rule.columns]
+        df.columns = rename_raw_headers_to_standard(
+            [normalize_header_column_name(c) for c in df.columns],
+            standard_cols,
+        )
         header_column_names = [str(c) for c in df.columns]
         header_set = set(header_column_names)
-        standard_cols = [c.name for c in rule.columns]
         standard_set = set(standard_cols)
         missing = [c for c in standard_cols if c not in header_set]
         extra: list[str] = []

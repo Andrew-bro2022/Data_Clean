@@ -89,3 +89,57 @@ def test_match_rule_raw_prefix() -> None:
     prefixes = {"DESK_STANDALONE_RWA_": "Desk_RWA_r20260205.csv"}
     f = raw_dir / "DESK_STANDALONE_RWA_20990101_20991231.csv"
     assert match_rule(f, rules, {}, raw_dir, prefixes) is rules["Desk_RWA_r20260205.csv"]
+
+
+def test_canonical_column_key_matches_human_headers() -> None:
+    from src.utils import canonical_column_key
+
+    pairs = [
+        ("entity_id", "entity id"),
+        ("capital_pre_floor", "capital(pre floor)"),
+        ("capital_floor", "capital (floor)"),
+        ("rwa_pre_floor", "rwa (pre floor)"),
+    ]
+    for std, raw in pairs:
+        assert canonical_column_key(std) == canonical_column_key(raw)
+
+
+def test_rename_raw_headers_to_standard() -> None:
+    from src.utils import rename_raw_headers_to_standard
+
+    standard = [
+        "desk",
+        "entity_id",
+        "capital_pre_floor",
+        "capital_floor",
+        "rwa_pre_floor",
+    ]
+    raw = [
+        "desk",
+        "entity id",
+        "capital(pre floor)",
+        "capital (floor)",
+        "rwa (pre floor)",
+    ]
+    assert rename_raw_headers_to_standard(raw, standard) == standard
+
+
+def test_detect_header_row_uses_canonical_keys() -> None:
+    from src.header_detector import detect_header_row
+
+    standard = [
+        "desk",
+        "entity_id",
+        "capital_pre_floor",
+        "capital_floor",
+        "rwa_pre_floor",
+    ]
+    human_row = [
+        "desk",
+        "entity id",
+        "capital(pre floor)",
+        "capital (floor)",
+        "rwa (pre floor)",
+    ]
+    rows = [["noise", "a", "b"], human_row, ["1", "2", "3", "4", "5"]]
+    assert detect_header_row(rows, standard, 0.6) == 1

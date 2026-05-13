@@ -12,7 +12,14 @@ from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.reader import build_rules_from_standards, load_rules
 from src.types import ProcessingResult
-from src.utils import iter_raw_files_one_level, mirrored_output_csv_path, normalize_header_column_name, preview_rows_for_header_detection, raw_subfolder_under_raw
+from src.utils import (
+    iter_raw_files_one_level,
+    mirrored_output_csv_path,
+    normalize_header_column_name,
+    preview_rows_for_header_detection,
+    raw_subfolder_under_raw,
+    rename_raw_headers_to_standard,
+)
 from src.validator import convert_types, derive_status
 
 
@@ -89,7 +96,11 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
             encoding=encoding,
             skiprows=skiprows,
         )
-        df.columns = [normalize_header_column_name(c) for c in df.columns]
+        standard_cols = [c.name for c in rule.columns]
+        df.columns = rename_raw_headers_to_standard(
+            [normalize_header_column_name(c) for c in df.columns],
+            standard_cols,
+        )
         # Column presence for reporting: use names from the detected header row only (not post-clean drops).
         header_column_names = [str(c) for c in df.columns]
         header_set = set(header_column_names)
@@ -98,7 +109,6 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
         cleaned = clean_dataframe(df)
         cleaned.columns = [str(c) for c in cleaned.columns]
 
-        standard_cols = [c.name for c in rule.columns]
         standard_set = set(standard_cols)
         missing = [c for c in standard_cols if c not in header_set]
         extra: list[str] = []

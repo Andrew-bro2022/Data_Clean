@@ -15,7 +15,7 @@ from audit.constants import (
     TOTAL_KEYWORDS,
 )
 from src.types import ColumnRule
-from src.utils import normalize_header_column_name
+from src.utils import canonical_column_key, normalize_header_column_name
 
 QUOTED_NUMERIC = re.compile(r'^\s*"\s*[\d$.,\s]+\s*"\s*$')
 # Quoted chunk containing comma between digits (e.g. "1,234")
@@ -107,7 +107,9 @@ def collect_numeric_quoting_issues_from_raw(
         return {}
 
     header_fields = split_csv_raw_fields(body[header_row_index], delimiter)
-    name_to_pos = {normalize_header_column_name(h): idx for idx, h in enumerate(header_fields)}
+    pos_by_canonical: dict[str, int] = {}
+    for idx, h in enumerate(header_fields):
+        pos_by_canonical[canonical_column_key(normalize_header_column_name(h))] = idx
 
     per_col: dict[str, dict[str, list[int]]] = {c: {"quoted_comma": [], "quoted_warn": []} for c in numeric_column_names}
 
@@ -116,7 +118,7 @@ def collect_numeric_quoting_issues_from_raw(
             continue
         fields = split_csv_raw_fields(line, delimiter)
         for col_name in numeric_column_names:
-            pos = name_to_pos.get(col_name)
+            pos = pos_by_canonical.get(canonical_column_key(col_name))
             if pos is None or pos >= len(fields):
                 continue
             raw_cell = fields[pos]

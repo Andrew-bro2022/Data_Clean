@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 DATE_SUFFIX_PATTERN = re.compile(r"(?:_\d{8}(?:_\d{8})?)$", re.IGNORECASE)
@@ -25,6 +26,44 @@ def normalize_header_column_name(name: object) -> str:
     while len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         text = text[1:-1].strip()
     return text
+
+
+def canonical_column_key(name: object) -> str:
+    """
+    Stable key for matching human-formatted headers to standard snake_case names.
+
+    Strips non-alphanumeric (spaces, underscores, parentheses, etc.) after lowercasing,
+    so e.g. ``entity id``, ``entity_id``, ``Entity ID`` share one key; ``capital(pre floor)``
+    matches ``capital_pre_floor``.
+    """
+    base = normalize_header_column_name(name)
+    folded = re.sub(r"[^a-z0-9]+", "", base.lower())
+    return folded if folded else base.lower().strip()
+
+
+def rename_raw_headers_to_standard(raw_headers: Sequence[str], standard_columns: Sequence[str]) -> list[str]:
+    """
+    For each raw header, if its canonical key matches exactly one standard column's key,
+    use the standard name; otherwise keep the raw header. If two raw columns map to the
+    same standard, only the first is renamed (others keep raw names).
+    """
+    key_to_standard: dict[str, str] = {}
+    for s in standard_columns:
+        key_to_standard.setdefault(canonical_column_key(s), str(s))
+
+    used_standard: dict[str, int] = {}
+    out: list[str] = []
+    for raw in raw_headers:
+        text = str(raw)
+        k = canonical_column_key(text)
+        std = key_to_standard.get(k)
+        if std is None:
+            out.append(text)
+            continue
+        n = used_standard.get(std, 0) + 1
+        used_standard[std] = n
+        out.append(std if n == 1 else text)
+    return out
 
 
 def preview_rows_for_header_detection(preview: pd.DataFrame) -> list[list[str]]:
