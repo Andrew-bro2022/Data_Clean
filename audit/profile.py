@@ -10,7 +10,7 @@ from audit.constants import READ_ENCODING_FALLBACKS
 from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.types import FileRule
-from src.utils import raw_subfolder_under_raw
+from src.utils import normalize_header_column_name, preview_rows_for_header_detection, raw_subfolder_under_raw
 
 
 def _analyze_column_count_and_order(
@@ -203,7 +203,7 @@ def audit_file(
         if enc.lower() != configured_encoding.lower():
             used_encoding_fallback = True
         header_idx = detect_header_row(
-            preview.fillna("").values.tolist(),
+            preview_rows_for_header_detection(preview),
             [c.name for c in rule.columns],
             threshold,
         )
@@ -253,6 +253,7 @@ def audit_file(
         if max_data_rows is not None:
             df = df.head(max_data_rows)
 
+        df.columns = [normalize_header_column_name(c) for c in df.columns]
         header_column_names = [str(c) for c in df.columns]
         header_set = set(header_column_names)
         standard_cols = [c.name for c in rule.columns]

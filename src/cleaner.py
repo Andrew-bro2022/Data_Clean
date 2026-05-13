@@ -4,6 +4,9 @@ import re
 
 import pandas as pd
 
+from src.utils import normalize_header_column_name
+
+
 NULL_TOKENS = {"", "-", "null", "n/a", "na"}
 EURO_NUMERIC_PATTERN = re.compile(r"^-?\d{1,3}(?:\.\d{3})+,\d+$")
 QUOTED_PATTERN = re.compile(r'^["\'](.*)["\']$')
@@ -34,7 +37,9 @@ def _clean_scalar(value: object) -> str | None:
 
 
 def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    cleaned = df.map(_clean_scalar)
+    out = df.copy()
+    out.columns = [normalize_header_column_name(c) for c in out.columns]
+    cleaned = out.map(_clean_scalar)
     cleaned = cleaned.dropna(axis=0, how="all")
     # Keep columns that exist in the header but are entirely empty after cleaning (do not drop all-null columns).
     return cleaned

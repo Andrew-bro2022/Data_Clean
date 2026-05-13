@@ -8,6 +8,7 @@ import pandas as pd
 import yaml
 
 from src.types import ColumnRule, FileRule
+from src.utils import normalize_header_column_name
 
 # Prefer %Y-%m-%d first: canonical standard for new standard-file row-2 samples.
 DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y")
@@ -90,7 +91,7 @@ def build_rules_from_standards(
         )
         if frame.empty or len(frame) < 2:
             continue
-        columns = frame.iloc[0].fillna("").tolist()
+        columns = [normalize_header_column_name(c) for c in frame.iloc[0].fillna("").tolist()]
         samples = frame.iloc[1].fillna("").tolist()
 
         column_rules: list[ColumnRule] = []

@@ -14,6 +14,28 @@ def normalize_token(name: str) -> str:
     return re.sub(r"[\s_]+", "_", stem).strip("_")
 
 
+def normalize_header_column_name(name: object) -> str:
+    """
+    Strip outer whitespace and matching single/double quotes from a column label.
+
+    Examples: ``" Trade_ID "`` -> ``Trade_ID``, ``'Amount'`` -> ``Amount``.
+    Repeats while the string is wrapped in the same quote character on both ends.
+    """
+    text = str(name).strip()
+    while len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1].strip()
+    return text
+
+
+def preview_rows_for_header_detection(preview: pd.DataFrame) -> list[list[str]]:
+    """Build preview matrix for header detection with column-label normalization per cell."""
+    rows = preview.fillna("").astype(str).values.tolist()
+    out: list[list[str]] = []
+    for row in rows:
+        out.append([normalize_header_column_name(c) if str(c).strip() else "" for c in row])
+    return out
+
+
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 

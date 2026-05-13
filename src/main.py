@@ -12,7 +12,7 @@ from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
 from src.reader import build_rules_from_standards, load_rules
 from src.types import ProcessingResult
-from src.utils import iter_raw_files_one_level, mirrored_output_csv_path, raw_subfolder_under_raw
+from src.utils import iter_raw_files_one_level, mirrored_output_csv_path, normalize_header_column_name, preview_rows_for_header_detection, raw_subfolder_under_raw
 from src.validator import convert_types, derive_status
 
 
@@ -60,7 +60,11 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
             encoding=encoding,
             skiprows=skiprows,
         )
-        header_idx = detect_header_row(preview.fillna("").values.tolist(), [c.name for c in rule.columns], threshold)
+        header_idx = detect_header_row(
+            preview_rows_for_header_detection(preview),
+            [c.name for c in rule.columns],
+            threshold,
+        )
         if header_idx is None:
             return ProcessingResult(
                 file_name=raw_file.name,
@@ -85,6 +89,7 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
             encoding=encoding,
             skiprows=skiprows,
         )
+        df.columns = [normalize_header_column_name(c) for c in df.columns]
         # Column presence for reporting: use names from the detected header row only (not post-clean drops).
         header_column_names = [str(c) for c in df.columns]
         header_set = set(header_column_names)
