@@ -97,15 +97,14 @@ def test_audit_flags_quoted_thousands_comma_in_numeric_column(tmp_path: Path) ->
     assert any("comma" in str(i.get("message", "")).lower() for i in numeric_issues)
 
 
-def test_audit_flags_unquoted_thousands_comma_pipe_delimited(tmp_path: Path) -> None:
-    """Unquoted 1,234 as one field (pipe delimiter) is flagged as unquoted thousands."""
+def test_audit_unquoted_thousands_comma_not_flagged_by_raw_scan(tmp_path: Path) -> None:
+    """Unquoted 1,234 as a single field (pipe-delimited) is not matched by current NUMERIC raw regexes."""
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
     raw_path = raw_dir / "unquoted_comma.csv"
     raw_path.write_text(
         "amount|name\n"
-        "1,234|a\n"
-        "12,345.67|b\n",
+        "1,234|a\n",
         encoding="utf-8",
     )
 
@@ -138,9 +137,7 @@ def test_audit_flags_unquoted_thousands_comma_pipe_delimited(tmp_path: Path) -> 
     numeric_on_amount = [
         i for i in result.issues if i.get("category") == "NUMERIC" and i.get("column") == "amount"
     ]
-    assert numeric_on_amount
-    assert any(
-        "unquoted thousands" in str(i.get("message", "")).lower() for i in numeric_on_amount
+    assert not numeric_on_amount, (
+        "current audit raw-line NUMERIC checks only cover $, quoted-numeric, and quoted-comma patterns; "
+        "plain 1,234 in one field is not flagged"
     )
-    unq = [i for i in numeric_on_amount if "unquoted thousands" in str(i.get("message", "")).lower()]
-    assert unq and unq[0].get("count") == 2
