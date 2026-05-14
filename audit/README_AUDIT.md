@@ -1,5 +1,7 @@
 # Pre-clean data audit
 
+Developer-oriented module map: **[docs/](docs/README.md)** (per-Python-file English notes). This file focuses on **how to run** audit and **how to read** the Excel report.
+
 Standalone step that runs **before** the main cleaning pipeline. It scans CSVs under `raw/` (single directory level), validates them against `config/file_rules.yaml` where applicable, and writes **one** timestamped Excel report under `audit/output/` (for example `audit/output/audit_YYYYMMDD_HHMMSS.xlsx`).
 
 ## Prerequisites
