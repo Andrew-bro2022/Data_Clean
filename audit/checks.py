@@ -20,6 +20,8 @@ from src.utils import canonical_column_key, normalize_header_column_name
 QUOTED_NUMERIC = re.compile(r'^\s*"\s*[\d$.,\s]+\s*"\s*$')
 # Quoted chunk containing comma between digits (e.g. "1,234")
 QUOTED_COMMA_NUMBER = re.compile(r'"[^"]*\d[^"]*,\s*\d[^"]*"')
+# Unquoted US-style thousands: 1,234 or 12,345,678; optional .decimals (e.g. 1,234.56)
+UNQUOTED_COMMA_THOUSANDS = re.compile(r"^\s*-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*$")
 
 
 def _sample_rows(rows: list[int]) -> list[int]:
@@ -97,7 +99,7 @@ def collect_numeric_quoting_issues_from_raw(
     numeric_column_names: set[str],
 ) -> dict[str, dict[str, list[int]]]:
     """
-    Map column -> {'quoted_comma': rows, 'quoted_warn': rows}.
+    Map column -> {'quoted_comma': rows, 'quoted_warn': rows, 'unquoted_thousands': rows}.
     Rows are 1-based indices aligned with dataframe data rows after the header row.
     """
     text = path.read_text(encoding=encoding, errors="replace")
@@ -111,7 +113,9 @@ def collect_numeric_quoting_issues_from_raw(
     for idx, h in enumerate(header_fields):
         pos_by_canonical[canonical_column_key(normalize_header_column_name(h))] = idx
 
-    per_col: dict[str, dict[str, list[int]]] = {c: {"quoted_comma": [], "quoted_warn": []} for c in numeric_column_names}
+    per_col: dict[str, dict[str, list[int]]] = {
+        c: {"quoted_comma": [], "quoted_warn": [], "unquoted_thousands": []} for c in numeric_column_names
+    }
 
     for row_i, line in enumerate(body[header_row_index + 1 :], start=1):
         if not line.strip():
@@ -126,6 +130,8 @@ def collect_numeric_quoting_issues_from_raw(
                 per_col[col_name]["quoted_comma"].append(row_i)
             elif QUOTED_NUMERIC.match(raw_cell.strip()):
                 per_col[col_name]["quoted_warn"].append(row_i)
+            elif UNQUOTED_COMMA_THOUSANDS.match(raw_cell.strip()):
+                per_col[col_name]["unquoted_thousands"].append(row_i)
     return per_col
 
 
@@ -267,6 +273,7 @@ def run_value_checks(
         for col_name, buckets in raw_quoting.items():
             quoted_comma = buckets["quoted_comma"]
             quoted_warn = buckets["quoted_warn"]
+            unquoted_thousands = buckets["unquoted_thousands"]
             if quoted_comma:
                 all_issues.append(
                     {
@@ -287,6 +294,17 @@ def run_value_checks(
                         "message": "Numeric-looking value wrapped in double quotes",
                         "count": len(quoted_warn),
                         "sample_rows": _sample_rows(quoted_warn),
+                    }
+                )
+            if unquoted_thousands:
+                all_issues.append(
+                    {
+                        "category": "NUMERIC",
+                        "severity": "warning",
+                        "column": col_name,
+                        "message": "Unquoted thousands separator (e.g. 1,234 or 1,234.56) in numeric column",
+                        "count": len(unquoted_thousands),
+                        "sample_rows": _sample_rows(unquoted_thousands),
                     }
                 )
 

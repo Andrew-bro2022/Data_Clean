@@ -38,7 +38,7 @@ python -m audit.main --base-dir .
 - `column_order_mismatch_expected` / `column_order_mismatch_found` — 该位置期望与实际的列名（或占位说明）。完整句式见 `issues_detail` 中的 `COLUMN_LAYOUT` 行。
 
 - `date_issue_columns` — 在 `issues_detail` 中至少有一条 `DATE` 问题的列名，逗号分隔、去重排序。
-- `numeric_issue_columns` — 同上，针对 `NUMERIC`（引号、`$`、按实现做的数值检查）。
+- `numeric_issue_columns` — 同上，针对 `NUMERIC`（引号、`$`、带引号千分位、无引号美式千分位如 `1,234`、按实现做的数值检查）。
 - `phantom_issue` / `total_keyword_issue` — 对应文件级检查触发时为 `Y`（这些检查通常在 detail 里没有 `column`）。
 
 `categories` 仍为紧凑的 `类别:数量`；逐行明细、消息与样本行号见 **`issues_detail`**。
@@ -53,7 +53,7 @@ python -m audit.main --base-dir .
 |------|------|
 | **Structure** | 表头检测及列集合与 YAML `columns` 对比，逻辑与清洗流水线一致。 |
 | **Dates** | 日期列按规则中的 `date_format` **严格**解析；清洗输出 CSV 中每个日期列也按该列的 `date_format` 写出（未配置时默认 `%Y-%m-%d`）。 |
-| **Numbers** | 接受美加千分位（如 `1,234.56`）。其它无法解析为数值的会标记。双引号包裹的数值外观 → 警告；引号内带千分位逗号（如 `"1,234"`）→ 升级上报。数值列中含 `$` → 警告。 |
+| **Numbers** | 清洗流水线接受美加千分位；audit 在 **原始行** 上仍会把数值列里 **无引号** 的美式千分位（如 `1,234`、`12,345.67`）标为警告。双引号包裹的数值外观 → 警告；引号内带千分位逗号（如 `"1,234"`）→ 升级上报。数值列中含 `$` → 警告。 |
 | **Phantom rows** | 数据 **底部** 连续多行大多为空白或逗号填充（阈值见 `audit/constants.py`）。 |
 | **Total-like rows** | 在数据 **末尾一段行** 内扫描 `Total`、`Grand Total`、`SUM` 等关键字（见 `TAIL_KEYWORD_SCAN_ROWS`）。 |
 
