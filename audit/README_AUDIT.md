@@ -40,7 +40,7 @@ Roll-up columns (quick filter in Excel):
 - `column_order_mismatch_expected` / `column_order_mismatch_found` — names (or sentinel text) at that position. See `COLUMN_LAYOUT` rows in `issues_detail` for the full sentence.
 
 - `date_issue_columns` — comma-separated column names with at least one `DATE` issue in `issues_detail`.
-- `numeric_issue_columns` — same for `NUMERIC` (quoted / `$` / strict numeric checks as implemented).
+- `numeric_issue_columns` — same for `NUMERIC` (quoted / `$` / accounting parentheses / scientific notation / strict checks as implemented).
 - `phantom_issue` / `total_keyword_issue` — `Y` when that file-level check fired (these checks usually have no `column` on the detail row).
 
 `categories` remains a compact `CATEGORY:count` summary; use `issues_detail` for every row, message, and sample row numbers.
@@ -55,7 +55,7 @@ All findings in one table: severity, check name, column (if relevant), row index
 |------|----------|
 | **Structure** | Header detection and column set compared to the YAML `columns` list, using the same matching logic as the clean pipeline. |
 | **Dates** | Values in date columns are parsed strictly with the rule’s `date_format` (cleaning writes each date column using that same `date_format` in CSV, or `%Y-%m-%d` when omitted). |
-| **Numbers** | US/Canada grouping is accepted (e.g. `1,234.56`). Other values that do not parse as numbers are flagged. Double-quoted numeric-looking cells are warnings; quoted values that contain a thousands comma (e.g. `"1,234"`) are escalated. `$` in numeric columns is a warning. |
+| **Numbers** | Double-quoted numeric-looking cells are warnings; quoted values that contain a thousands comma (e.g. `"1,234"`) are escalated. `$` in numeric columns is a warning. **Accounting parentheses** (e.g. `(5000)`, `($2,364)`) are an **error** on YAML numeric columns (parsed dataframe). **Scientific notation** (e.g. `1.23e+05`, often from Excel re-saving CSV) is a **warning** on YAML **numeric and string** columns (parsed dataframe cells). |
 | **Phantom rows** | A long run of mostly empty or comma-padded rows at the **bottom** of the audited data (see `PHANTOM_MIN_CONSECUTIVE` in `audit/constants.py`). |
 | **Total-like rows** | Keywords such as `Total`, `Grand Total`, and `SUM` in the last portion of the data (see `TAIL_KEYWORD_SCAN_ROWS` in `audit/constants.py`). |
 

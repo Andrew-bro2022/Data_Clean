@@ -47,7 +47,7 @@ rules:
       skiprows: 0
     columns:
     - name: Trade_ID
-      type: int
+      type: string
     - name: As_Of_Date
       type: date
       date_format: '%Y-%m-%d'
@@ -164,7 +164,7 @@ rules:
       skiprows: 0
     columns:
     - name: Trade_ID
-      type: int
+      type: string
     - name: As_Of_Date
       type: date
       date_format: '%Y-%m-%d'

@@ -8,13 +8,14 @@ Builds the **`issues`** list for `audit.profile.audit_file`: each item is a dict
 
 - **`run_value_checks(df, column_rules, *, raw_path=None, read_opts=None, header_row_index=None)`**  
   - Runs **date** strict checks when YAML has `date_format`.  
-  - Runs **numeric** checks for int/float/numeric columns present in `df`.  
-  - If `raw_path` / `read_opts` / `header_row_index` are set, runs **`collect_numeric_quoting_issues_from_raw`** (raw line scan for quoted numerics / quoted comma patterns).  
+  - Runs **numeric** checks for int/float/numeric columns present in `df` (`$`, accounting parentheses, scientific notation).
+  - Runs **scientific notation** checks for **string** columns as well (Excel CSV export).
+  - If `raw_path` / `read_opts` / `header_row_index` are set, runs **`collect_numeric_quoting_issues_from_raw`** (raw line scan for quoted numerics / quoted comma patterns; not scientific notation).
   - Appends **phantom** trailer and **total-keyword** checks on `df`.
 
 ## Helpers (selected)
 
-- **`check_dates_strict`**, **`check_numeric_column`** (`$` in parsed cells).  
+- **`check_dates_strict`**, **`check_numeric_column`** (`$`, accounting parentheses), **`check_scientific_notation`** (numeric + string columns on `df`).  
 - **`split_csv_raw_fields`**, **`collect_numeric_quoting_issues_from_raw`** — delimiter-aware raw line parsing for numeric columns.  
 - **`check_phantom_trailer`**, **`check_total_keywords`** — file-tail heuristics.
 

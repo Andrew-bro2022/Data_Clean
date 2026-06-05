@@ -20,10 +20,43 @@ from src.utils import canonical_column_key, normalize_header_column_name
 QUOTED_NUMERIC = re.compile(r'^\s*"\s*[\d$.,\s]+\s*"\s*$')
 # Quoted chunk containing comma between digits (e.g. "1,234")
 QUOTED_COMMA_NUMBER = re.compile(r'"[^"]*\d[^"]*,\s*\d[^"]*"')
+# Mantissa with exponent (e.g. 1.23e+05, 2E-3, 1e6); case-insensitive e/E
+SCIENTIFIC_NOTATION = re.compile(r"(?i)^(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+$")
+# Accounting negative: parentheses around optional $ and digits (e.g. (5000), ($2,364))
+ACCOUNTING_PARENS = re.compile(r"^\s*\(\s*(?:\$?\s*)?[\d,.\s]*\d[\d,.\s]*\s*\)\s*$")
 
 
 def _sample_rows(rows: list[int]) -> list[int]:
     return sorted(set(rows))[:SAMPLE_ROW_LIMIT]
+
+
+def _cell_text_for_scientific_check(val: object) -> str:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ""
+    return normalize_header_column_name(val)
+
+
+def check_scientific_notation(series: pd.Series, col_name: str) -> list[dict]:
+    """Flag cells whose value is scientific notation (common after Excel re-save of CSV)."""
+    normalized = series.map(_cell_text_for_scientific_check)
+    non_empty = normalized.str.len() > 0
+    hits = normalized.str.match(SCIENTIFIC_NOTATION, na=False) & non_empty
+    if not hits.any():
+        return []
+    bad_rows = [i + 1 for i, flag in enumerate(hits) if flag]
+    return [
+        {
+            "category": "NUMERIC",
+            "severity": "warning",
+            "column": col_name,
+            "message": (
+                "Scientific notation (e.g. 1.23e+05) — often from Excel CSV export; "
+                "use plain decimal digits or restore the original file"
+            ),
+            "count": len(bad_rows),
+            "sample_rows": _sample_rows(bad_rows),
+        }
+    ]
 
 
 def check_dates_strict(series: pd.Series, col_name: str, fmt: str) -> list[dict]:
@@ -99,6 +132,8 @@ def collect_numeric_quoting_issues_from_raw(
     """
     Map column -> {'quoted_comma': rows, 'quoted_warn': rows}.
     Rows are 1-based indices aligned with dataframe data rows after the header row.
+
+    Scientific notation is checked on the parsed dataframe (see ``check_scientific_notation``).
     """
     text = path.read_text(encoding=encoding, errors="replace")
     lines = [ln.rstrip("\r\n") for ln in text.splitlines()]
@@ -130,9 +165,10 @@ def collect_numeric_quoting_issues_from_raw(
 
 
 def check_numeric_column(series: pd.Series, col_name: str) -> list[dict]:
-    """`$` and similar from parsed cells. Quoted-numeric findings use raw line scan (pandas drops quote chars)."""
+    """`$`, accounting parentheses, etc. from parsed cells. Quoted findings use raw line scan."""
     issues: list[dict] = []
     dollar_warn: list[int] = []
+    accounting_paren_err: list[int] = []
 
     for i, val in enumerate(series, start=1):
         if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -142,6 +178,8 @@ def check_numeric_column(series: pd.Series, col_name: str) -> list[dict]:
             continue
         if "$" in text:
             dollar_warn.append(i)
+        if ACCOUNTING_PARENS.match(text):
+            accounting_paren_err.append(i)
 
     if dollar_warn:
         issues.append(
@@ -152,6 +190,20 @@ def check_numeric_column(series: pd.Series, col_name: str) -> list[dict]:
                 "message": "Cell contains $ (currency) in numeric column",
                 "count": len(dollar_warn),
                 "sample_rows": _sample_rows(dollar_warn),
+            }
+        )
+    if accounting_paren_err:
+        issues.append(
+            {
+                "category": "NUMERIC",
+                "severity": "error",
+                "column": col_name,
+                "message": (
+                    "Cell uses accounting parentheses for negative amount "
+                    "(e.g. (5000) or ($2,364))"
+                ),
+                "count": len(accounting_paren_err),
+                "sample_rows": _sample_rows(accounting_paren_err),
             }
         )
     return issues
@@ -234,6 +286,7 @@ def run_value_checks(
     all_issues: list[dict] = []
     numeric_types = {"int", "integer", "float", "numeric"}
     numeric_names: set[str] = set()
+    scientific_names: set[str] = set()
 
     for rule in column_rules:
         if rule.name not in df.columns:
@@ -244,7 +297,12 @@ def run_value_checks(
             all_issues.extend(check_dates_strict(s, rule.name, rule.date_format))
         if t in numeric_types:
             numeric_names.add(rule.name)
+            scientific_names.add(rule.name)
             all_issues.extend(check_numeric_column(s, rule.name))
+            all_issues.extend(check_scientific_notation(s, rule.name))
+        elif t == "string":
+            scientific_names.add(rule.name)
+            all_issues.extend(check_scientific_notation(s, rule.name))
 
     if (
         raw_path is not None
@@ -289,7 +347,6 @@ def run_value_checks(
                         "sample_rows": _sample_rows(quoted_warn),
                     }
                 )
-
     all_issues.extend(check_phantom_trailer(df))
     all_issues.extend(check_total_keywords(df))
     return all_issues
