@@ -24,6 +24,8 @@ QUOTED_COMMA_NUMBER = re.compile(r'"[^"]*\d[^"]*,\s*\d[^"]*"')
 SCIENTIFIC_NOTATION = re.compile(r"(?i)^(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+$")
 # Accounting negative: parentheses around optional $ and digits (e.g. (5000), ($2,364))
 ACCOUNTING_PARENS = re.compile(r"^\s*\(\s*(?:\$?\s*)?[\d,.\s]*\d[\d,.\s]*\s*\)\s*$")
+DASH_PLACEHOLDERS = frozenset({"-", "–", "—"})
+TEXT_NULL_PLACEHOLDERS = frozenset({"null", "n/a", "na"})
 
 
 def _sample_rows(rows: list[int]) -> list[int]:
@@ -34,6 +36,41 @@ def _cell_text_for_scientific_check(val: object) -> str:
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return ""
     return normalize_header_column_name(val)
+
+
+def _is_null_placeholder_token(text: str) -> bool:
+    stripped = text.strip()
+    if stripped in DASH_PLACEHOLDERS:
+        return True
+    return stripped.lower() in TEXT_NULL_PLACEHOLDERS
+
+
+def check_placeholder_tokens(series: pd.Series, col_name: str) -> list[dict]:
+    """Flag dash / null / n/a / na placeholders (aligned with cleaner NULL_TOKENS, minus empty)."""
+    bad_rows: list[int] = []
+    for i, val in enumerate(series, start=1):
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            continue
+        text = normalize_header_column_name(val)
+        if text == "":
+            continue
+        if _is_null_placeholder_token(text):
+            bad_rows.append(i)
+    if not bad_rows:
+        return []
+    return [
+        {
+            "category": "PLACEHOLDER",
+            "severity": "error",
+            "column": col_name,
+            "message": (
+                "Cell is null/missing placeholder (e.g. -, –, —, null, n/a) "
+                "— will be cleaned as empty"
+            ),
+            "count": len(bad_rows),
+            "sample_rows": _sample_rows(bad_rows),
+        }
+    ]
 
 
 def check_scientific_notation(series: pd.Series, col_name: str) -> list[dict]:
@@ -295,6 +332,7 @@ def run_value_checks(
         t = rule.data_type.lower()
         if t in {"date", "datetime"} and rule.date_format:
             all_issues.extend(check_dates_strict(s, rule.name, rule.date_format))
+        all_issues.extend(check_placeholder_tokens(s, rule.name))
         if t in numeric_types:
             numeric_names.add(rule.name)
             scientific_names.add(rule.name)

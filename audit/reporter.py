@@ -71,6 +71,7 @@ def write_audit_excel(results: list[FileAuditResult], output_path: Path) -> Path
                 # Per-category column rollups (see issues_detail for row-level detail).
                 "date_issue_columns": _sorted_issue_columns(r.issues, "DATE"),
                 "numeric_issue_columns": _sorted_issue_columns(r.issues, "NUMERIC"),
+                "placeholder_issue_columns": _sorted_issue_columns(r.issues, "PLACEHOLDER"),
                 "phantom_issue": "Y" if _has_category(r.issues, "PHANTOM") else "",
                 "total_keyword_issue": "Y" if _has_category(r.issues, "TOTAL") else "",
                 "read_error": r.error_message or "",
