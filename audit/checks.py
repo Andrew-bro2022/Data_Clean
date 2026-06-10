@@ -20,8 +20,14 @@ from src.utils import canonical_column_key, normalize_header_column_name
 QUOTED_NUMERIC = re.compile(r'^\s*"\s*[\d$.,\s]+\s*"\s*$')
 # Quoted chunk containing comma between digits (e.g. "1,234")
 QUOTED_COMMA_NUMBER = re.compile(r'"[^"]*\d[^"]*,\s*\d[^"]*"')
-# Mantissa with exponent (e.g. 1.23e+05, 2E-3, 1e6); case-insensitive e/E
-SCIENTIFIC_NOTATION = re.compile(r"(?i)^(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+$")
+# Excel-style scientific notation: mantissa with '.' (e.g. 1.47114E+14) or explicit E+/E- (e.g. 2E+06).
+# Excludes alphanumeric IDs like 75512E101 (no dot, no sign after E).
+SCIENTIFIC_NOTATION = re.compile(
+    r"(?i)^(?:"
+    r"(?:\d+\.\d+|\.\d+)[eE][+-]?\d+"
+    r"|\d+[eE][+-]\d+"
+    r")$"
+)
 # Accounting negative: parentheses around optional $ and digits (e.g. (5000), ($2,364))
 ACCOUNTING_PARENS = re.compile(r"^\s*\(\s*(?:\$?\s*)?[\d,.\s]*\d[\d,.\s]*\s*\)\s*$")
 DASH_PLACEHOLDERS = frozenset({"-", "–", "—"})
