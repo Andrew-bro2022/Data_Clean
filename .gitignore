@@ -6,3 +6,6 @@ __pycache__/
 # Data files
 *.csv
 *.xlsx
+
+# Tests (local only; new files under tests/ are ignored automatically)
+tests/
