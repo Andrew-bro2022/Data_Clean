@@ -1,5 +1,0 @@
-Trade_ID,As_Of_Date,Amount,Currency,Extra_Comment
-1001,2026-03-31,1234.56,USD,ok
-1002,2026-04-01,2000.1,USD,needs-review
-1003,2026-04-02,1234.56,EUR,
-1004,,500.0,USD,bad-date

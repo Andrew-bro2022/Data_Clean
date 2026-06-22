@@ -1,5 +1,0 @@
-note line,,,
-Desk,Reporting_Date,RWA_Value,Comment
-EQD,03/31/2026,"1,500.25",ok
-FI,04/15/2026,"2.345,67",eu-format
-CR,bad-date,700,test
