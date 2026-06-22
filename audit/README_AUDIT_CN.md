@@ -55,7 +55,7 @@ python -m audit.main --base-dir .
 | **Structure** | 表头检测及列集合与 YAML `columns` 对比，逻辑与清洗流水线一致。 |
 | **Dates** | 日期列按规则中的 `date_format` **严格**解析；清洗输出 CSV 中每个日期列也按该列的 `date_format` 写出（未配置时默认 `%Y-%m-%d`）。 |
 | **Numbers** | 双引号包裹的数值外观 → 警告；引号内带千分位逗号（如 `"1,234"`）→ 升级上报。数值列中含 `$` → 警告。**会计括号负数**（如 `(5000)`、`($2,364)`）在 YAML **数值列**上为 **error**（基于读入后的 dataframe）。**科学计数法**（如 `1.23e+05`，常见于 Excel 另存 CSV）在 YAML **数值列与 string 列**上为 **warning**（基于读入后的 dataframe 单元格）。 |
-| **Placeholders** | 任意 YAML 列上为 dash 或文本空值占位（`-`、`–`、`—`、`null`、`n/a`、`na`，不区分大小写）→ **error**（基于读入后的 dataframe；与 cleaner `NULL_TOKENS` 对齐，不含空字符串）。 |
+| **Placeholders** | 任意 YAML 列上为 dash 或文本空值占位（`-`、`–`、`—`、`null`、`n/a`、`na`，不区分大小写）→ **warning**（clean 会清空；与 cleaner `NULL_TOKENS` 对齐，不含空字符串）。 |
 | **Phantom rows** | 数据 **底部** 连续多行大多为空白或逗号填充（阈值见 `audit/constants.py`）。 |
 | **Total-like rows** | 在数据 **末尾一段行** 内扫描 `Total`、`Grand Total`、`SUM` 等关键字（见 `TAIL_KEYWORD_SCAN_ROWS`）。 |
 

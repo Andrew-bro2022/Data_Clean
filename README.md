@@ -9,6 +9,11 @@ This project provides a modular Python pipeline to clean raw financial CSV files
 
 Optionally, a **pre-clean audit** (separate from the pipeline) can scan `raw/` and write one Excel workbook under `audit/output/`; see [audit/README_AUDIT.md](audit/README_AUDIT.md).
 
+**Clean behavior (fail vs warn, row filters, value rules)** is documented in [README_DATA_CLEAN_POLICY.md](README_DATA_CLEAN_POLICY.md) ([中文版](README_DATA_CLEAN_POLICY_CN.md)). YAML defines schema only (`type`, `date_format`, mappings)—not clean policy.
+
+For a colleague-oriented walkthrough, see [docs/clean_pipeline.md](docs/clean_pipeline.md).  
+**Audit then clean (recommended batch workflow):** [docs/audit_clean_workflow.md](docs/audit_clean_workflow.md).
+
 The pipeline supports:
 
 - batch mode (process files in `raw/` and **one subdirectory level**: `raw/*.csv` and `raw/*/*.csv`).
@@ -65,13 +70,13 @@ Rule config is stored in `config/file_rules.yaml`.
 
 ## Pre-clean audit (optional)
 
-Run **before** the main pipeline to flag structure issues, strict date parse failures, suspicious numeric cells, phantom rows at the file tail, and total-like rows. Requires an existing `config/file_rules.yaml`.
+Run **before** the main pipeline on new batches. Full step-by-step: **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)**.
 
 ```bash
 python -m audit.main --base-dir .
 ```
 
-Details, CLI flags (`--file`, `--max-data-rows`), and how to read the workbook: [audit/README_AUDIT.md](audit/README_AUDIT.md).
+Report: `audit/output/audit_YYYYMMDD_HHMMSS.xlsx`. CLI (`--file`, `--max-data-rows`) and sheet layout: [audit/README_AUDIT.md](audit/README_AUDIT.md).
 
 ---
 
@@ -128,41 +133,46 @@ python -m src.reader --base-dir . --standards-dir ./standards --output-yaml ./co
 
 ## What the Pipeline Does
 
-For each file:
+For each file (see [README_DATA_CLEAN_POLICY.md](README_DATA_CLEAN_POLICY.md) for full policy):
 
-1. Skip `.xlsx` files and mark as `skipped_xlsx`
-2. Match raw file to a standard rule
-3. Detect header row using match ratio threshold (default `0.6`)
-4. Clean values (trim, null normalization, currency/quotes cleanup, numeric normalization)
-5. Remove fully blank rows only (columns that appear in the header row are kept even if every cell is empty after cleaning)
-6. Compare header names to standard columns:
-   - keep extra columns in output (and report them as `extra_columns`)
-   - report `missing_columns` only when a YAML-standard column name is absent from the raw header row (do not output columns that were never present in the raw header)
-7. Convert types based on YAML rules
-8. Save cleaned CSV with original raw filename
-9. Add summary and column stats to Excel report
+1. Skip `.xlsx` → `skipped_xlsx`; skip `raw/_audit_fixtures/`
+2. Match raw file to a standard rule (`file_rules.yaml`)
+3. Read CSV (encoding fallback; ragged rows → warn with line numbers)
+4. Detect header row (default threshold `0.6`)
+5. Rename headers to standard names; **fail** on duplicate standard columns
+6. **Layout gate:** **fail** on missing or extra columns vs YAML; **reorder** + warn if only order differs
+7. Warn on scientific notation in source cells
+8. Remove phantom trailer rows; report (do not remove) total-like keyword rows
+9. Clean values (placeholders, `$`, commas, accounting parentheses → negative, etc.)
+10. Convert types (flexible dates → YAML `date_format` on output; float scientific literals preserved)
+11. Save cleaned CSV under `output/` (mirrors `raw/` path) and append to Excel report
 
 ---
 
 ## Status Definitions
 
-- `success`: processed successfully (missing/extra columns allowed)
-- `warning`: processed with type conversion issues
-- `failed`: unrecoverable issue (for example, no matching rule or header not found)
-- `skipped_xlsx`: skipped by design
+- `success`: processed; output written; no warnings
+- `warning`: output written; review `status_reason` and `issues_detail` (e.g. column reorder, non-strict dates, scientific notation, type conversion, encoding fallback, ragged CSV)
+- `failed`: no output (no rule, header not found, layout/duplicate-column gate, unhandled error)
+- `skipped_xlsx`: Excel not processed; convert to CSV
+
+Also see `layout_status`, `clean_status`, and `output_written` on `file_summary`.
 
 ---
 
 ## Report Output
 
-Each run creates:
+Each run creates `reports/report_YYYYMMDD_HHMMSS.xlsx` with **five** sheets:
 
-- `reports/report_YYYYMMDD_HHMMSS.xlsx`
+| Sheet | Purpose |
+|-------|---------|
+| `file_summary` | One row per file: `status`, `output_written`, `layout_status`, `clean_status`, `status_reason`, row counts, paths (`raw_subfolder` disambiguates same filename in different folders) |
+| `issues_detail` | Issues by `phase` and `category` with column, count, sample rows |
+| `clean_actions` | File-level clean counts (placeholders, `$`, parens, commas, blank rows) |
+| `clean_actions_by_column` | Same actions per column |
+| `column_stats` | Per-column nulls, conversion issues, scientific notation, date-parse breakdown |
 
-Sheets:
-
-- `file_summary`: one row per file (includes `raw_subfolder`: the folder name directly under `raw/`, or empty for files in `raw/` root)
-- `column_stats`: per-file, per-column null and conversion issue counts (also includes `raw_subfolder` to disambiguate same file names in different folders)
+Details: [docs/clean_pipeline.md](docs/clean_pipeline.md), [docs/exporter.md](docs/exporter.md).
 
 ---
 
@@ -215,17 +225,19 @@ Only needed if business rules change:
 
 ## Team Usage Checklist
 
+See **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)** for the full audit → clean flow and the audit-vs-clean behavior table.
+
 Before running:
 
 1. Confirm Python and dependencies are installed.
 2. Confirm standard CSV files exist in `standards/`.
 3. Review `config/file_rules.yaml` for local encoding/delimiter/mapping differences.
 4. Put raw files into `raw/`.
-5. (Optional) Run `python -m audit.main --base-dir .` and review `audit/output/audit_*.xlsx` before a full clean.
+5. Run audit and review `audit/output/audit_*.xlsx` (recommended for new batches).
 
-After running:
+After clean:
 
-1. Check `reports/report_*.xlsx` first.
+1. Check `reports/report_*.xlsx`.
 2. Review `failed` and `warning` rows.
 3. Inspect corresponding cleaned outputs in `output/`.
 
@@ -245,7 +257,11 @@ This writes files under `raw/pipeline_tests/`. These fixtures are designed to be
 
 ## Script Documentation
 
-Detailed per-script docs are available in `docs/`:
+- **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)** — recommended audit → clean batch workflow
+- **[docs/clean_pipeline.md](docs/clean_pipeline.md)** — colleague guide (flow, report, common cases)
+- **[README_DATA_CLEAN_POLICY.md](README_DATA_CLEAN_POLICY.md)** — authoritative clean policy (not in YAML) ([中文版](README_DATA_CLEAN_POLICY_CN.md))
+
+Per-module docs in `docs/`:
 
 - `docs/main.md`
 - `docs/reader.md`

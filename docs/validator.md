@@ -1,22 +1,36 @@
 # `src/validator.py`
 
 ## Purpose
-Converts columns to expected types and derives per-file status.
+Converts columns to expected types and derives per-file `status`.
 
 ## Key Functions
-- `convert_types(df, column_rules)`: applies type conversion by rule and counts conversion failures.
-- `derive_status(header_row_found, has_conversion_issue, failed)`: maps processing flags to status code.
+- `convert_types(df, column_rules)` → `(DataFrame, TypeConversionMeta)`
+  - `type_issues`: non-empty cells that failed conversion
+  - `date_stats`: per-column strict / alternate / Excel serial / inferred / failed counts
+  - `scientific_preserved`: float cells kept as literal scientific strings
+- `derive_status(...)`: maps flags to `success` / `warning` / `failed`
 
 ## Conversion Rules
-- Numeric types (`int`, `integer`, `float`, `numeric`):
-  - convert via `pandas.to_numeric(errors="coerce")`
-  - `int` values are rounded and cast to nullable `Int64`
-- Date types (`date`, `datetime`):
-  - **Parsing**: first try YAML `date_format`; any non-empty cell that still fails is parsed again with `pandas.to_datetime(..., errors="coerce", dayfirst=False)` so legacy shapes (e.g. `MM/DD/YYYY`) can still be read.
-  - Parsed values are **normalized** to midnight (date-only).
-  - **CSV output** (see `save_cleaned`): each date/datetime column is written using **that column's `date_format`** from the rule. If `date_format` is missing, the writer uses **`%Y-%m-%d`** for that column.
-- String type:
-  - cast to pandas `string`
+
+### Numeric (`int`, `integer`, `float`, `numeric`)
+- `to_numeric` with `errors="coerce"`
+- `int` → round, nullable `Int64`
+- **`float` / `numeric`:** cells matching Excel scientific notation are **not** coerced — kept as source text for CSV output
+
+### Date (`date`, `datetime`)
+Per cell, in order:
+1. Strict YAML `date_format`
+2. Excel serial (e.g. `45674`)
+3. Common alternate formats (`%m/%d/%Y`, `%m%d%y`, …)
+4. `pandas.to_datetime` infer (`dayfirst=False`)
+
+Parsed values normalized to midnight. Non-strict successes → `warning` in report (`DATE` category). Output formatting: see `save_cleaned`.
+
+### String
+- pandas `string` dtype
 
 ## Issue Counting
-For each converted column, count rows that were non-null before conversion and null after conversion.
+- Type: non-null before, null after conversion
+- Date: `date_stats.failed` plus `TYPE` warning when parse fails
+
+Policy: [README_DATA_CLEAN_POLICY.md](../README_DATA_CLEAN_POLICY.md)

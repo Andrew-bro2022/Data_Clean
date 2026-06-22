@@ -58,7 +58,7 @@ All findings in one table: severity, check name, column (if relevant), row index
 | **Dates** | Values in date columns are parsed strictly with the rule’s `date_format` (cleaning writes each date column using that same `date_format` in CSV, or `%Y-%m-%d` when omitted). |
 | **Numbers** | Double-quoted numeric-looking cells are warnings; quoted values that contain a thousands comma (e.g. `"1,234"`) are escalated. `$` in numeric columns is a warning. **Accounting parentheses** (e.g. `(5000)`, `($2,364)`) are an **error** on YAML numeric columns (parsed dataframe). **Scientific notation** (e.g. `1.23e+05`, often from Excel re-saving CSV) is a **warning** on YAML **numeric and string** columns (parsed dataframe cells). |
 | **Phantom rows** | A long run of mostly empty or comma-padded rows at the **bottom** of the audited data (see `PHANTOM_MIN_CONSECUTIVE` in `audit/constants.py`). |
-| **Placeholders** | Dash or text null tokens (`-`, `–`, `—`, `null`, `n/a`, `na`, case-insensitive) on **any YAML column** are **errors** (parsed dataframe; aligned with cleaner `NULL_TOKENS`, excluding empty string). |
+| **Placeholders** | Dash or text null tokens (`-`, `–`, `—`, `null`, `n/a`, `na`, case-insensitive) on **any YAML column** are **warnings** (clean clears them to empty; aligned with cleaner `NULL_TOKENS`, excluding empty string). |
 | **Total-like rows** | Keywords such as `Total`, `Grand Total`, and `SUM` in the last portion of the data (see `TAIL_KEYWORD_SCAN_ROWS` in `audit/constants.py`). |
 
 Adjust sensitivity by editing thresholds in `audit/constants.py`.

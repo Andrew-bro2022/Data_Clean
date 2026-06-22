@@ -16,6 +16,8 @@ This project is driven by `config/file_rules.yaml`. Both **audit** and **data cl
 - which standard schema applies to each raw file
 - per-column types and date formats
 
+**Clean behavior** (fail on missing/extra columns, phantom removal, placeholder handling, etc.) is **not** configured in YAML. See [README_DATA_CLEAN_POLICY.md](../README_DATA_CLEAN_POLICY.md).
+
 ## Quick rules of thumb
 
 - If you have **new standards** (new domains / new column sets): add them under `standards/` and regenerate/merge YAML via `src.reader`.

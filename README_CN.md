@@ -9,6 +9,11 @@
 
 可选：在主流水线之前单独运行 **预清洗 audit**，扫描 `raw/`，在 `audit/output/` 下写入一份 Excel；详见本仓库中的 `audit/README_AUDIT_CN.md`（中文说明，自用）。
 
+**清洗行为**（何时 fail/warn、行过滤、值规则）见 **[README_DATA_CLEAN_POLICY_CN.md](README_DATA_CLEAN_POLICY_CN.md)**。YAML 只定义 schema（`type`、`date_format`、映射），**不包含** clean policy。英文版：[README_DATA_CLEAN_POLICY.md](README_DATA_CLEAN_POLICY.md)。
+
+同事上手流程见 **[docs/clean_pipeline.md](docs/clean_pipeline.md)**（英文）。  
+**推荐批次流程 audit → clean：** **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)**（英文）。
+
 流水线支持：
 
 - **批量模式**：处理 `raw/` 下文件及 **一层子目录**（`raw/*.csv` 与 `raw/*/*.csv`）。
@@ -65,13 +70,13 @@ pip install -r requirements.txt
 
 ## 预清洗 audit（可选）
 
-在主流水线之前运行，用于标记结构问题、严格日期解析失败、可疑数值单元格、文件尾部 phantom 行、合计类关键字行等。需要已存在 `config/file_rules.yaml`。
+新批次建议在清洗前运行。完整步骤见 **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)**（英文）。
 
 ```bash
 python -m audit.main --base-dir .
 ```
 
-CLI、`--file`、`--max-data-rows` 及报表阅读说明见 `audit/README_AUDIT_CN.md`。
+报告路径：`audit/output/audit_YYYYMMDD_HHMMSS.xlsx`。CLI 与报表说明见 [audit/README_AUDIT_CN.md](audit/README_AUDIT_CN.md)。
 
 ---
 
@@ -128,39 +133,46 @@ python -m src.reader --base-dir . --standards-dir ./standards --output-yaml ./co
 
 ## 流水线对每个文件做什么
 
-1. 跳过 `.xlsx`，标记为 `skipped_xlsx`
-2. 将 raw 文件匹配到标准规则
-3. 用匹配比例阈值检测表头行（默认 `0.6`）
-4. 清洗单元格（去空白、空值归一、货币/引号、数值归一）
-5. 仅删除**整行全空**的行（表头中出现的列即使清洗后全空也保留）
-6. 将表头列名与标准列对比：
-   - 额外列保留在输出中（并在报告中记为 `extra_columns`）
-   - `missing_columns` 仅当 YAML 标准列名在 raw 表头中不存在时报告（不会输出从未出现在 raw 表头中的列）
-7. 按 YAML 规则做类型转换
-8. 以原始文件名为名保存清洗后 CSV
-9. 在 Excel 报告中写入汇总与列统计
+完整政策见 [README_DATA_CLEAN_POLICY_CN.md](README_DATA_CLEAN_POLICY_CN.md)。摘要：
+
+1. 跳过 `.xlsx` → `skipped_xlsx`；跳过 `raw/_audit_fixtures/`
+2. 匹配 `file_rules.yaml` 标准规则
+3. 读 CSV（编码回退；错位行 warn 并记录行号）
+4. 检测表头行（默认阈值 `0.6`）
+5. 表头重命名为标准列名；**重复映射到同一标准列 → fail**
+6. **结构门控：** 相对 YAML **缺列或多列 → fail**；仅顺序不对 → 重排并 **warning**
+7. 科学计数法 → **warning**（不阻断）
+8. 删除尾部 phantom 行；合计类关键字行 **仅报告、不删除**
+9. 单元格清洗（占位符、`$`、千分位、会计括号转负数等）
+10. 类型转换（日期多格式解析后按 YAML `date_format` 写出；float 科学计数保留原文字）
+11. 写入 `output/`（镜像 `raw/` 路径）并生成 Excel 报告
 
 ---
 
 ## 状态含义
 
-- `success`：处理成功（允许缺列/多列）
-- `warning`：处理完成但有类型转换问题
-- `failed`：无法恢复的错误（例如无匹配规则或找不到表头）
-- `skipped_xlsx`：按设计跳过
+- `success`：已写出 output，无 warning
+- `warning`：已写出 output，需看 `status_reason` 与 `issues_detail`（如列重排、非 strict 日期、科学计数、类型转换、编码回退、错位 CSV 等）
+- `failed`：**无 output**（无规则、找不到表头、结构/重复列门控失败、未处理异常）
+- `skipped_xlsx`：不处理 Excel，请先转 CSV
+
+`file_summary` 上还有 `layout_status`、`clean_status`、`output_written`。
 
 ---
 
 ## 报告输出
 
-每次运行生成：
+每次运行生成 `reports/report_YYYYMMDD_HHMMSS.xlsx`，含 **5 个工作表**：
 
-- `reports/report_YYYYMMDD_HHMMSS.xlsx`
+| 工作表 | 内容 |
+|--------|------|
+| `file_summary` | 每文件一行：`status`、`output_written`、`layout_status`、`clean_status`、`status_reason` 等 |
+| `issues_detail` | 按 `phase` / `category` 列出的问题与样例行号 |
+| `clean_actions` | 文件级清洗计数 |
+| `clean_actions_by_column` | 按列清洗计数 |
+| `column_stats` | 每列空值、转换问题、科学计数、日期解析方式统计 |
 
-工作表：
-
-- `file_summary`：每个文件一行（含 `raw_subfolder`：`raw/` 正下方文件夹名，根目录文件为空）
-- `column_stats`：按文件、按列统计空值与转换问题（同样含 `raw_subfolder`，便于区分不同子目录下同文件名）
+详见 [docs/clean_pipeline.md](docs/clean_pipeline.md)。
 
 ---
 
@@ -207,17 +219,19 @@ python -m src.reader --base-dir . --standards-dir ./standards --output-yaml ./co
 
 ## 团队使用清单
 
+完整 **audit → clean** 流程及对照表见 **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)**。
+
 运行前：
 
 1. 确认 Python 与依赖已安装。
 2. 确认 `standards/` 中有标准 CSV。
 3. 检查 `config/file_rules.yaml` 中的编码、分隔符、映射是否与本地一致。
 4. 将 raw 放入 `raw/`。
-5. （可选）先运行 `python -m audit.main --base-dir .`，查看 `audit/output/audit_*.xlsx`，再跑完整清洗。
+5. 运行 audit 并查看 `audit/output/audit_*.xlsx`（新批次建议执行）。
 
-运行后：
+清洗后：
 
-1. 先看 `reports/report_*.xlsx`。
+1. 查看 `reports/report_*.xlsx`。
 2. 查看 `failed` 与 `warning` 行。
 3. 对照查看 `output/` 中清洗结果。
 
@@ -239,7 +253,12 @@ python tools/generate_pipeline_fixtures.py
 
 ## 脚本文档
 
-各脚本详细说明见 `docs/`：
+- **[docs/audit_clean_workflow.md](docs/audit_clean_workflow.md)** — 推荐 audit → clean 批次流程（英文）
+- **[README_DATA_CLEAN_POLICY_CN.md](README_DATA_CLEAN_POLICY_CN.md)** — 清洗政策（权威，不在 YAML 中）
+- **[README_DATA_CLEAN_POLICY.md](README_DATA_CLEAN_POLICY.md)** — 英文版
+- **[docs/clean_pipeline.md](docs/clean_pipeline.md)** — 同事用流程与读报告说明
+
+`docs/` 下各模块说明：
 
 - `docs/main.md`
 - `docs/reader.md`

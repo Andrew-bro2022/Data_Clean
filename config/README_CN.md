@@ -16,6 +16,8 @@
 - 每个 raw 对应哪套标准 schema
 - 各列类型与日期格式
 
+**清洗行为**（缺列/多列 fail、phantom 删除、占位符处理等）**不在 YAML 中配置**，见 [README_DATA_CLEAN_POLICY_CN.md](../README_DATA_CLEAN_POLICY_CN.md)（[英文](../README_DATA_CLEAN_POLICY.md)）。
+
 ## 快速原则
 
 - **新标准**（新域 / 新列集合）：在 `standards/` 增改后，用 `src.reader` 重新生成/合并 YAML。
