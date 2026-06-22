@@ -67,11 +67,11 @@ def check_placeholder_tokens(series: pd.Series, col_name: str) -> list[dict]:
     return [
         {
             "category": "PLACEHOLDER",
-            "severity": "error",
+            "severity": "warning",
             "column": col_name,
             "message": (
                 "Cell is null/missing placeholder (e.g. -, –, —, null, n/a) "
-                "— will be cleaned as empty"
+                "— clean pipeline will clear to empty"
             ),
             "count": len(bad_rows),
             "sample_rows": _sample_rows(bad_rows),
