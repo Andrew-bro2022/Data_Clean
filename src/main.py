@@ -4,17 +4,20 @@ import argparse
 import logging
 from pathlib import Path
 
-import pandas as pd
-
+from src.blockers import scan_scientific_notation
+from src.clean_actions import count_non_null_cells
 from src.cleaner import clean_dataframe
 from src.exporter import save_cleaned, save_report_excel
 from src.file_matcher import match_rule
 from src.header_detector import detect_header_row
+from src.io import read_csv_raw
 from src.reader import build_rules_from_standards, load_rules
+from src.reporting import build_duplicate_column_issues, build_layout_fail_issues, enrich_result_metadata
+from src.row_filters import remove_phantom_trailer_rows, scan_total_keyword_rows
+from src.structure import detect_duplicate_columns, format_duplicate_columns_message, gate_and_align
 from src.types import ProcessingResult
 from src.utils import (
     iter_raw_files_one_level,
-    literal_header_missing_and_extra,
     mirrored_output_csv_path,
     normalize_header_column_name,
     preview_rows_for_header_detection,
@@ -36,47 +39,56 @@ def setup_logging(log_dir: Path) -> None:
     )
 
 
-def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_root: Path) -> ProcessingResult:
-    sf = raw_subfolder_under_raw(raw_file, raw_dir)
-    if raw_file.suffix.lower() == ".xlsx":
-        return ProcessingResult(
-            file_name=raw_file.name,
-            status="skipped_xlsx",
-            header_row_index=None,
-            rows_before=0,
+def _failed_result(
+    *,
+    file_name: str,
+    sf: str,
+    header_row_index: int | None,
+    message: str,
+    missing_columns: list[str] | None = None,
+    extra_columns: list[str] | None = None,
+    literal_missing: list[str] | None = None,
+    literal_extra: list[str] | None = None,
+    duplicate_columns: dict[str, list[int]] | None = None,
+    rows_before: int = 0,
+) -> ProcessingResult:
+    issues = []
+    if duplicate_columns:
+        issues = build_duplicate_column_issues(duplicate_columns)
+    elif missing_columns or extra_columns:
+        issues = build_layout_fail_issues(
+            missing_columns=missing_columns or [],
+            extra_columns=extra_columns or [],
+            message=message,
+        )
+    return enrich_result_metadata(
+        ProcessingResult(
+            file_name=file_name,
+            status="failed",
+            header_row_index=header_row_index,
+            rows_before=rows_before,
             rows_after=0,
-            missing_columns=[],
-            extra_columns=[],
+            missing_columns=missing_columns or [],
+            extra_columns=extra_columns or [],
+            literal_missing_columns=literal_missing or [],
+            literal_extra_columns=literal_extra or [],
+            duplicate_columns=duplicate_columns or {},
             type_conversion_issues={},
             null_count_by_column={},
             raw_subfolder=sf,
+            error_message=message,
+            issues=issues,
         )
+    )
 
-    try:
-        read_opts = dict(rule.read)
-        delimiter = read_opts.get("delimiter", ",")
-        encoding = read_opts.get("encoding", "utf-8")
-        skiprows = int(read_opts.get("skiprows", 0))
 
-        preview = pd.read_csv(
-            raw_file,
-            header=None,
-            dtype=str,
-            nrows=30,
-            keep_default_na=False,
-            sep=delimiter,
-            encoding=encoding,
-            skiprows=skiprows,
-        )
-        header_idx = detect_header_row(
-            preview_rows_for_header_detection(preview),
-            [c.name for c in rule.columns],
-            threshold,
-        )
-        if header_idx is None:
-            return ProcessingResult(
+def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_root: Path) -> ProcessingResult:
+    sf = raw_subfolder_under_raw(raw_file, raw_dir)
+    if raw_file.suffix.lower() == ".xlsx":
+        return enrich_result_metadata(
+            ProcessingResult(
                 file_name=raw_file.name,
-                status="failed",
+                status="skipped_xlsx",
                 header_row_index=None,
                 rows_before=0,
                 rows_after=0,
@@ -85,67 +97,143 @@ def process_file(raw_file: Path, rule, threshold: float, raw_dir: Path, output_r
                 type_conversion_issues={},
                 null_count_by_column={},
                 raw_subfolder=sf,
-                error_message="Header row not found",
+            )
+        )
+
+    try:
+        read_opts = dict(rule.read)
+        standard_cols = [c.name for c in rule.columns]
+
+        preview_result = read_csv_raw(
+            raw_file,
+            header=None,
+            read_opts=read_opts,
+            nrows=30,
+        )
+        preview = preview_result.frame
+        header_idx = detect_header_row(
+            preview_rows_for_header_detection(preview),
+            standard_cols,
+            threshold,
+        )
+        if header_idx is None:
+            return _failed_result(
+                file_name=raw_file.name,
+                sf=sf,
+                header_row_index=None,
+                message="Header row not found",
             )
 
-        df = pd.read_csv(
-            raw_file,
-            dtype=str,
-            header=header_idx,
-            keep_default_na=False,
-            sep=delimiter,
-            encoding=encoding,
-            skiprows=skiprows,
-        )
-        standard_cols = [c.name for c in rule.columns]
+        read_result = read_csv_raw(raw_file, header=header_idx, read_opts=read_opts)
+        df = read_result.frame
+        read_opts["encoding"] = read_result.encoding_used
+
         raw_exact_headers = [normalize_header_column_name(c) for c in df.columns]
         df.columns = rename_raw_headers_to_standard(raw_exact_headers, standard_cols)
-        # Layout vs standard uses renamed headers; missing/extra use literal raw labels.
-        header_column_names = [str(c) for c in df.columns]
 
-        rows_before = len(df)
-        cleaned = clean_dataframe(df)
-        cleaned.columns = [str(c) for c in cleaned.columns]
+        dups = detect_duplicate_columns(
+            raw_exact_headers,
+            standard_cols,
+            list(df.columns),
+        )
+        if dups:
+            return _failed_result(
+                file_name=raw_file.name,
+                sf=sf,
+                header_row_index=header_idx,
+                message=format_duplicate_columns_message(dups),
+                duplicate_columns=dups,
+                rows_before=len(df),
+            )
 
-        standard_set = set(standard_cols)
-        missing, extra = literal_header_missing_and_extra(raw_exact_headers, standard_cols)
+        layout = gate_and_align(
+            df,
+            raw_exact_headers=raw_exact_headers,
+            standard_columns=standard_cols,
+        )
+        if not layout.ok:
+            return _failed_result(
+                file_name=raw_file.name,
+                sf=sf,
+                header_row_index=header_idx,
+                message=layout.error_message or "Layout gate failed",
+                missing_columns=layout.missing_columns,
+                extra_columns=layout.extra_columns,
+                literal_missing=layout.literal_missing_columns,
+                literal_extra=layout.literal_extra_columns,
+                rows_before=len(df),
+            )
 
-        ordered_standard = [c for c in standard_cols if c in cleaned.columns]
-        extra_ordered = [c for c in cleaned.columns if c not in standard_set]
-        aligned = cleaned[ordered_standard + extra_ordered]
+        aligned = layout.aligned
+        assert aligned is not None
 
-        converted, issues = convert_types(aligned, rule.columns)
+        sci_counts = scan_scientific_notation(aligned, rule.columns)
+        non_null_before = {col: count_non_null_cells(aligned[col]) for col in aligned.columns}
+
+        rows_before = len(aligned)
+        total_keyword_rows = scan_total_keyword_rows(aligned)
+        aligned, phantom_removed = remove_phantom_trailer_rows(aligned)
+
+        cleaned, clean_stats = clean_dataframe(aligned, rule.columns)
+        non_null_after_clean = {col: count_non_null_cells(cleaned[col]) for col in cleaned.columns}
+
+        converted, conv_meta = convert_types(cleaned, rule.columns)
+        issues = conv_meta.type_issues
+        has_date_inference = any(
+            stats.recovered_non_strict > 0 for stats in conv_meta.date_stats.values()
+        )
         null_counts = converted.isna().sum().astype(int).to_dict()
-        status = derive_status(header_row_found=True, has_conversion_issue=bool(issues), failed=False)
+        status = derive_status(
+            header_row_found=True,
+            failed=False,
+            has_conversion_issue=bool(issues),
+            column_order_realigned=layout.column_order_realigned,
+            total_keyword_rows=total_keyword_rows,
+            scientific_notation_by_column=sci_counts,
+            encoding_configured=read_result.configured_encoding,
+            encoding_used=read_result.encoding_used,
+            csv_bad_line_numbers=read_result.bad_line_numbers,
+            has_date_inference=has_date_inference,
+        )
         output_csv = mirrored_output_csv_path(raw_file, raw_dir, output_root)
         output_path = save_cleaned(converted, output_csv, rule.columns)
 
-        return ProcessingResult(
-            file_name=raw_file.name,
-            status=status,
-            header_row_index=header_idx,
-            rows_before=rows_before,
-            rows_after=len(converted),
-            missing_columns=missing,
-            extra_columns=extra,
-            type_conversion_issues=issues,
-            null_count_by_column=null_counts,
-            raw_subfolder=sf,
-            output_path=output_path,
+        return enrich_result_metadata(
+            ProcessingResult(
+                file_name=raw_file.name,
+                status=status,
+                header_row_index=header_idx,
+                rows_before=rows_before,
+                rows_after=len(converted),
+                missing_columns=layout.missing_columns,
+                extra_columns=layout.extra_columns,
+                literal_missing_columns=layout.literal_missing_columns,
+                literal_extra_columns=layout.literal_extra_columns,
+                column_order_realigned=layout.column_order_realigned,
+                phantom_rows_removed=phantom_removed,
+                total_keyword_rows=total_keyword_rows,
+                scientific_notation_by_column=sci_counts,
+                encoding_configured=read_result.configured_encoding,
+                encoding_used=read_result.encoding_used,
+                csv_parse_notes=read_result.parse_notes,
+                csv_bad_line_numbers=read_result.bad_line_numbers,
+                type_conversion_issues=issues,
+                date_parse_stats_by_column=conv_meta.date_stats,
+                scientific_preserved_by_column=conv_meta.scientific_preserved,
+                null_count_by_column=null_counts,
+                non_null_before_by_column=non_null_before,
+                non_null_after_clean_by_column=non_null_after_clean,
+                clean_actions=clean_stats,
+                raw_subfolder=sf,
+                output_path=output_path,
+            )
         )
     except Exception as exc:  # noqa: BLE001
-        return ProcessingResult(
+        return _failed_result(
             file_name=raw_file.name,
-            status="failed",
+            sf=sf,
             header_row_index=None,
-            rows_before=0,
-            rows_after=0,
-            missing_columns=[],
-            extra_columns=[],
-            type_conversion_issues={},
-            null_count_by_column={},
-            raw_subfolder=sf,
-            error_message=str(exc),
+            message=str(exc),
         )
 
 
@@ -168,18 +256,11 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
         candidate = (base_dir / Path(target_file)).resolve()
         if not candidate.exists() or not candidate.is_file():
             results.append(
-                ProcessingResult(
+                _failed_result(
                     file_name=Path(target_file).name,
-                    status="failed",
+                    sf="",
                     header_row_index=None,
-                    rows_before=0,
-                    rows_after=0,
-                    missing_columns=[],
-                    extra_columns=[],
-                    type_conversion_issues={},
-                    null_count_by_column={},
-                    raw_subfolder="",
-                    error_message="File not found",
+                    message="File not found",
                 )
             )
             return save_report_excel(results, reports_dir)
@@ -187,18 +268,11 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
             candidate.relative_to(raw_dir)
         except ValueError:
             results.append(
-                ProcessingResult(
+                _failed_result(
                     file_name=candidate.name,
-                    status="failed",
+                    sf="",
                     header_row_index=None,
-                    rows_before=0,
-                    rows_after=0,
-                    missing_columns=[],
-                    extra_columns=[],
-                    type_conversion_issues={},
-                    null_count_by_column={},
-                    raw_subfolder="",
-                    error_message="Path must be under raw/ (relative to base-dir)",
+                    message="Path must be under raw/ (relative to base-dir)",
                 )
             )
             return save_report_excel(results, reports_dir)
@@ -211,25 +285,23 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
 
         if not raw_file.exists() or raw_file.is_dir():
             continue
-        # Ignore synthetic fixtures used to regression-test audit behavior.
-        # These are not real inputs and would otherwise create noise in pipeline outputs/reports.
         if sf == "_audit_fixtures":
             continue
-        # Skip xlsx early (even without a matching rule).
-        # The pipeline does not process xlsx and expects manual conversion to csv.
         if raw_file.suffix.lower() == ".xlsx":
             results.append(
-                ProcessingResult(
-                    file_name=raw_file.name,
-                    status="skipped_xlsx",
-                    header_row_index=None,
-                    rows_before=0,
-                    rows_after=0,
-                    missing_columns=[],
-                    extra_columns=[],
-                    type_conversion_issues={},
-                    null_count_by_column={},
-                    raw_subfolder=sf,
+                enrich_result_metadata(
+                    ProcessingResult(
+                        file_name=raw_file.name,
+                        status="skipped_xlsx",
+                        header_row_index=None,
+                        rows_before=0,
+                        rows_after=0,
+                        missing_columns=[],
+                        extra_columns=[],
+                        type_conversion_issues={},
+                        null_count_by_column={},
+                        raw_subfolder=sf,
+                    )
                 )
             )
             continue
@@ -237,18 +309,11 @@ def run_pipeline(base_dir: Path, target_file: str | None) -> Path:
         rule = match_rule(raw_file, rules, mappings, raw_dir, prefix_to_standard)
         if rule is None:
             results.append(
-                ProcessingResult(
+                _failed_result(
                     file_name=raw_file.name,
-                    status="failed",
+                    sf=sf,
                     header_row_index=None,
-                    rows_before=0,
-                    rows_after=0,
-                    missing_columns=[],
-                    extra_columns=[],
-                    type_conversion_issues={},
-                    null_count_by_column={},
-                    raw_subfolder=sf,
-                    error_message="No matching standard rule",
+                    message="No matching standard rule",
                 )
             )
             continue
